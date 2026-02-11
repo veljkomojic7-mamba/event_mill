@@ -561,13 +561,19 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
     elif cmd_name == "load_pdf":
         # usage: load_pdf <file_path> [document_name] [--gcs]
         if len(parts) < 2:
-            print("Usage: load_pdf <file_path> [document_name] [--gcs]")
+            print("Usage: load_pdf <blob_path> [document_name] [--gcs]")
             print("  Load a threat intel PDF as context for threat model analysis")
-            print("  --gcs: Load from GCS bucket instead of local filesystem")
+            print("  --gcs: Load from GCS bucket (uses GCS_LOG_BUCKET)")
+            print("")
+            print("  Examples:")
+            print("    load_pdf /local/path/to/report.pdf")
+            print("    load_pdf threatintel/m-trends-2025.pdf --gcs")
+            print("    load_pdf threatintel/report.pdf \"Mandiant Report\" --gcs")
             return True
         file_path = parts[1]
         from_gcs = "--gcs" in parts
-        remaining = [p for p in parts[2:] if p != "--gcs"]
+        # Filter out --gcs and True/False that might follow it
+        remaining = [p for p in parts[2:] if p.lower() not in ("--gcs", "true", "false")]
         doc_name = remaining[0] if remaining else ""
         await call_soc_tool("load_threat_intel_pdf", {
             "file_path": file_path,
@@ -577,16 +583,38 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
         return True
 
     elif cmd_name == "threat_model":
-        # usage: threat_model <document_content> [source_type]
+        # usage: threat_model <file_path> [source_type] [--gcs] OR threat_model --text "<content>"
         if len(parts) < 2:
-            print("Usage: threat_model \"<document_content>\" [source_type]")
+            print("Usage: threat_model <pdf_path> [source_type] [--gcs]")
+            print("       threat_model --text \"<document_content>\" [source_type]")
+            print("")
             print("  Analyze a threat model document to extract attack paths and controls")
             print("  source_type: threat_model, security_assessment, red_team_report")
+            print("")
+            print("  Examples:")
+            print("    threat_model /path/to/threat-model.pdf")
+            print("    threat_model threatmodels/app-threat-model.pdf --gcs")
+            print("    threat_model --text \"Attack scenario: adversary gains access via...\"")
+            print("")
             print("  Tip: Load threat intel PDFs first with 'load_pdf' for context")
             return True
-        # Join remaining parts as document content
-        doc_content = " ".join(parts[1:])
-        await call_soc_tool("analyze_threat_model", {"document_content": doc_content})
+        
+        # Check if using --text mode for raw text input
+        if parts[1] == "--text":
+            doc_content = " ".join(parts[2:])
+            await call_soc_tool("analyze_threat_model", {"document_content": doc_content})
+        else:
+            # PDF mode
+            file_path = parts[1]
+            from_gcs = "--gcs" in parts
+            # Filter out --gcs and True/False
+            remaining = [p for p in parts[2:] if p.lower() not in ("--gcs", "true", "false")]
+            source_type = remaining[0] if remaining else "threat_model"
+            await call_soc_tool("analyze_threat_model_pdf", {
+                "file_path": file_path,
+                "source_type": source_type,
+                "from_gcs": from_gcs
+            })
         return True
 
     elif cmd_name == "tabletop":
@@ -663,7 +691,8 @@ def print_help():
     print(f"\n{Colors.RED}🎯 Threat Modeling & Attack Paths:{Colors.RESET}")
     print(f"   {Colors.WHITE}load_pdf{Colors.RESET} <path> [name] [--gcs]     Load threat intel PDF as context")
     print(f"   {Colors.WHITE}threat_intel{Colors.RESET} [list|clear]          Manage loaded threat intel context")
-    print(f"   {Colors.WHITE}threat_model{Colors.RESET} \"<content>\"           Analyze threat model document")
+    print(f"   {Colors.WHITE}threat_model{Colors.RESET} <pdf> [type] [--gcs]  Analyze threat model PDF")
+    print(f"   {Colors.WHITE}threat_model{Colors.RESET} --text \"<content>\"    Analyze threat model text")
     print(f"   {Colors.WHITE}tabletop{Colors.RESET} \"<minutes>\"               Analyze tabletop exercise minutes")
     print(f"   {Colors.WHITE}scenarios{Colors.RESET} [list|gaps|export]       Manage threat scenarios")
     print(f"   {Colors.WHITE}create_scenario{Colors.RESET} \"<name>\" \"<desc>\"  Create new threat scenario")

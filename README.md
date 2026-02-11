@@ -11,6 +11,7 @@ Event Mill is an open-source event record analysis platform supporting Security 
 - 📊 **20 ECS Event Categories** - Aligned with Elastic Common Schema
 - 🔗 **OpenTelemetry Mappings** - Semantic conventions for observability
 - 🛡️ **Threat Intelligence** - AI-powered investigation with MITRE ATT&CK context
+- 🎯 **Threat Modeling** - Analyze threat model PDFs and tabletop exercises for attack paths
 - ⚙️ **Modular Architecture** - Extensible tool system for easy customization
 - 🔧 **Detection Engineering** - Generate GROK parsing templates for log pipelines
 
@@ -68,6 +69,17 @@ python conversational_client.py
 | `patterns` | Show GROK patterns & OTel mappings |
 | `patterns_custom` | List all analyze GROK patterns (built-in + custom) |
 
+### 🎯 Threat Modeling & Attack Paths
+| Command | Description |
+|---------|-------------|
+| `load_pdf <path> [name] [--gcs]` | Load threat intel PDF as context |
+| `threat_intel [list\|clear]` | Manage loaded threat intel context |
+| `threat_model <pdf> [type] [--gcs]` | Analyze threat model PDF |
+| `threat_model --text "<content>"` | Analyze threat model text |
+| `tabletop "<minutes>"` | Analyze tabletop exercise minutes |
+| `scenarios [list\|gaps\|export]` | Manage threat scenarios |
+| `create_scenario "<name>" "<desc>"` | Create new threat scenario |
+
 ### 🤖 Natural Language
 Just type naturally:
 - *"Show me the top talkers from the web server logs"*
@@ -100,7 +112,72 @@ Just type naturally:
 
 # Natural language query
 ⚙ mill> show me top talkers from access.log
+
+# Load threat intel context (PDF)
+⚙ mill> load_pdf threatintel/m-trends-2025.pdf --gcs
+
+# Analyze a threat model PDF
+⚙ mill> threat_model threatmodels/webapp-tm.pdf --gcs
+
+# Check defense gaps in a scenario
+⚙ mill> scenarios gaps TS-0001
+
+# Export scenario to markdown
+⚙ mill> scenarios export TS-0001 output.md
 ```
+
+## Threat Modeling
+
+Event Mill can analyze threat model documents and tabletop exercise minutes to extract attack paths and identify defense gaps.
+
+### Workflow
+
+```bash
+# 1. Load threat intelligence context (optional but recommended)
+⚙ mill> load_pdf threatintel/m-trends-2025.pdf --gcs
+✅ Threat Intel PDF Loaded
+   Document ID: TI-0001
+   Characters: 245,000
+
+# 2. Analyze a threat model PDF
+⚙ mill> threat_model threatmodels/webapp-threat-model.pdf --gcs
+🎯 THREAT MODEL ANALYSIS (PDF)
+   📚 Threat Intel Context: 1 document(s) applied
+   ...analysis output...
+
+# 3. Create a scenario to track findings
+⚙ mill> create_scenario "Ransomware via Phishing" "APT group targets employees with spear phishing"
+✅ Threat Scenario Created
+   Scenario ID: TS-0001
+
+# 4. View defense gaps
+⚙ mill> scenarios gaps TS-0001
+⚠️ UNPROTECTED ATTACK STEPS
+   - Step 3: Lateral Movement
+🔓 EASY-TO-BYPASS CONTROLS
+   - Email Gateway: low difficulty
+
+# 5. Export to markdown report
+⚙ mill> scenarios export TS-0001 threat-report.md
+✅ Exported threat scenario to: threat-report.md
+```
+
+### Capabilities
+
+- **PDF Analysis**: Extract text from threat model PDFs (local or GCS)
+- **Threat Intel Context**: Load background context from threat intel reports
+- **Security Controls**: Track controls by defense layer (perimeter, network, endpoint, etc.)
+- **Attack Sequence**: Map attack events with MITRE ATT&CK techniques
+- **Gap Analysis**: Identify unprotected steps, weak controls, and weakest points
+- **Markdown Export**: Generate reports with control coverage matrix
+
+### Source Types
+
+| Type | Description |
+|------|-------------|
+| `threat_model` | Formal threat modeling documents (STRIDE, PASTA, etc.) |
+| `security_assessment` | Penetration test reports, security audits |
+| `red_team_report` | Red team engagement findings |
 
 ## GROK Patterns
 
@@ -196,6 +273,23 @@ Add this to your MCP configuration file:
 | `generate_pattern_templates(file_name, bucket_name, sample_lines, max_templates, output_format)` | Generate GROK parsing templates |
 | `get_parsing_patterns()` | Show GROK patterns and OTel mappings |
 
+### Threat Modeling Tools
+| Tool | Description |
+|------|-------------|
+| `load_threat_intel_pdf(file_path, document_name, from_gcs, bucket_name)` | Load threat intel PDF as context |
+| `load_threat_intel_text(content, document_name, source)` | Load threat intel text as context |
+| `list_threat_intel_context()` | List loaded threat intel documents |
+| `clear_threat_intel_context(document_id)` | Clear threat intel context |
+| `analyze_threat_model_pdf(file_path, source_type, from_gcs, bucket_name)` | Analyze threat model PDF |
+| `analyze_threat_model(document_content, source_type, source_document)` | Analyze threat model text |
+| `analyze_tabletop_minutes(minutes_content, exercise_name, exercise_date)` | Analyze tabletop exercise |
+| `create_threat_scenario(name, description, source_type, ...)` | Create threat scenario |
+| `add_security_control(scenario_id, name, control_type, ...)` | Add security control to scenario |
+| `add_attack_event(scenario_id, name, description, sequence_order, ...)` | Add attack event to scenario |
+| `list_threat_scenarios()` | List all threat scenarios |
+| `get_scenario_gaps(scenario_id)` | Analyze defense gaps |
+| `export_threat_scenario(scenario_id, output_path, view_type)` | Export scenario to markdown |
+
 ### AI-Powered Features
 - **Gemini 3 Flash Integration**: Advanced threat intelligence analysis
 - **Pattern Recognition**: Automatic log type identification
@@ -233,7 +327,8 @@ gcs_soc_mcp/
 │   ├── search.py            # Log search tools
 │   ├── analysis.py          # Pattern analysis tools
 │   ├── investigation.py     # AI investigation tools
-│   └── templates.py         # Template generation tools
+│   ├── templates.py         # Template generation tools
+│   └── threat_modeling.py   # Threat modeling & attack path tools
 └── docs/                     # Documentation
     ├── CUSTOM_PATTERNS.md   # Custom pattern guide
     ├── DEPLOYMENT.md        # Remote deployment guide

@@ -370,6 +370,111 @@ def register_threat_modeling_tools(mcp, storage_client, gemini_client, get_bucke
     # =========================================================================
 
     @mcp.tool()
+    def analyze_threat_model_pdf(
+        file_path: str,
+        source_type: str = "threat_model",
+        from_gcs: bool = False,
+        bucket_name: str = ""
+    ) -> str:
+        """
+        Analyzes a threat modeling PDF document to extract attack paths and controls.
+        Reads the PDF file directly and performs AI analysis.
+        
+        Args:
+            file_path: Path to the PDF file (local path or GCS blob path if from_gcs=True)
+            source_type: Type of document ('threat_model', 'security_assessment', 'red_team_report')
+            from_gcs: If True, load from GCS bucket instead of local filesystem
+            bucket_name: GCS bucket name (required if from_gcs=True, or uses default)
+        
+        Returns:
+            Structured analysis of attack paths, controls, and gaps
+        """
+        if not PDF_SUPPORT:
+            return "Error: PDF support not available. Install pymupdf: pip install pymupdf"
+        
+        if not _gemini_client:
+            return "Error: GEMINI_API_KEY not set. AI analysis features are disabled."
+        
+        try:
+            doc_name = os.path.basename(file_path)
+            
+            # Extract PDF content
+            if from_gcs:
+                target_bucket = _get_bucket(bucket_name)
+                if not target_bucket:
+                    return "Error: No bucket specified and GCS_LOG_BUCKET not set."
+                if not _storage_client:
+                    return "Error: GCS Client not initialized."
+                
+                bucket = _storage_client.bucket(target_bucket)
+                blob = bucket.blob(file_path)
+                pdf_bytes = blob.download_as_bytes()
+                document_content = extract_text_from_pdf_bytes(pdf_bytes, doc_name)
+                source_ref = f"gcs://{target_bucket}/{file_path}"
+            else:
+                if not os.path.exists(file_path):
+                    return f"Error: File not found: {file_path}"
+                document_content = extract_text_from_pdf(file_path)
+                source_ref = f"file://{file_path}"
+            
+            if not document_content.strip():
+                return f"Error: No text content could be extracted from {file_path}"
+            
+            # Get threat intel context if available
+            threat_intel_context = _threat_intel.get_combined_context()
+            
+            # Build enhanced document content with threat intel context
+            if threat_intel_context:
+                enhanced_content = f"""THREAT INTELLIGENCE CONTEXT:
+The following threat intelligence has been loaded to provide background context for this analysis.
+Use this information to inform your understanding of threat actors, TTPs, and attack patterns.
+
+{threat_intel_context}
+
+{'='*60}
+THREAT MODEL DOCUMENT TO ANALYZE:
+{'='*60}
+
+{document_content}"""
+            else:
+                enhanced_content = document_content
+            
+            prompt = get_threat_model_analysis_prompt(
+                source_type=source_type,
+                document_content=enhanced_content,
+                include_history=True
+            )
+            
+            response = _gemini_client.models.generate_content(
+                model='gemini-2.5-pro-preview-05-06',
+                contents=prompt
+            )
+            
+            output = []
+            output.append("=" * 60)
+            output.append("🎯 THREAT MODEL ANALYSIS (PDF)")
+            output.append(f"Source: {source_type} - {doc_name}")
+            output.append(f"File: {source_ref}")
+            if threat_intel_context:
+                output.append(f"📚 Threat Intel Context: {len(_threat_intel._documents)} document(s) applied")
+            output.append("=" * 60)
+            output.append("")
+            output.append(response.text)
+            output.append("")
+            output.append("=" * 60)
+            output.append("💡 Next Steps:")
+            output.append("  1. Use 'create_threat_scenario' to create a trackable scenario")
+            output.append("  2. Use 'add_security_control' to add identified controls")
+            output.append("  3. Use 'add_attack_event' to add attack sequence events")
+            output.append("  4. Use 'export_threat_scenario' to generate a markdown report")
+            
+            return "\n".join(output)
+            
+        except Exception as e:
+            logging.error(f"Error analyzing threat model PDF: {e}")
+            return f"Error analyzing threat model PDF: {str(e)}"
+
+    @mcp.tool()
     def analyze_threat_model(
         document_content: str,
         source_type: str = "threat_model",
