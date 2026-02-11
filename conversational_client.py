@@ -541,6 +541,89 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
         
         print(f"{Colors.CYAN}{'═'*60}{Colors.RESET}")
         return True
+
+    # =========================================================================
+    # THREAT MODELING COMMANDS
+    # =========================================================================
+    
+    elif cmd_name == "threat_intel":
+        # usage: threat_intel [list|clear]
+        subcommand = parts[1] if len(parts) > 1 else "list"
+        if subcommand == "list":
+            await call_soc_tool("list_threat_intel_context", {})
+        elif subcommand == "clear":
+            doc_id = parts[2] if len(parts) > 2 else ""
+            await call_soc_tool("clear_threat_intel_context", {"document_id": doc_id})
+        else:
+            print("Usage: threat_intel [list|clear] [document_id]")
+        return True
+
+    elif cmd_name == "load_pdf":
+        # usage: load_pdf <file_path> [document_name] [--gcs]
+        if len(parts) < 2:
+            print("Usage: load_pdf <file_path> [document_name] [--gcs]")
+            print("  Load a threat intel PDF as context for threat model analysis")
+            print("  --gcs: Load from GCS bucket instead of local filesystem")
+            return True
+        file_path = parts[1]
+        from_gcs = "--gcs" in parts
+        remaining = [p for p in parts[2:] if p != "--gcs"]
+        doc_name = remaining[0] if remaining else ""
+        await call_soc_tool("load_threat_intel_pdf", {
+            "file_path": file_path,
+            "document_name": doc_name,
+            "from_gcs": from_gcs
+        })
+        return True
+
+    elif cmd_name == "threat_model":
+        # usage: threat_model <document_content> [source_type]
+        if len(parts) < 2:
+            print("Usage: threat_model \"<document_content>\" [source_type]")
+            print("  Analyze a threat model document to extract attack paths and controls")
+            print("  source_type: threat_model, security_assessment, red_team_report")
+            print("  Tip: Load threat intel PDFs first with 'load_pdf' for context")
+            return True
+        # Join remaining parts as document content
+        doc_content = " ".join(parts[1:])
+        await call_soc_tool("analyze_threat_model", {"document_content": doc_content})
+        return True
+
+    elif cmd_name == "tabletop":
+        # usage: tabletop <minutes_content> [exercise_name]
+        if len(parts) < 2:
+            print("Usage: tabletop \"<minutes_content>\" [exercise_name]")
+            print("  Analyze tabletop exercise minutes for attack scenarios and control gaps")
+            return True
+        minutes_content = " ".join(parts[1:])
+        await call_soc_tool("analyze_tabletop_minutes", {"minutes_content": minutes_content})
+        return True
+
+    elif cmd_name == "scenarios":
+        # usage: scenarios [list|gaps <id>|export <id> [path]]
+        subcommand = parts[1] if len(parts) > 1 else "list"
+        if subcommand == "list":
+            await call_soc_tool("list_threat_scenarios", {})
+        elif subcommand == "gaps" and len(parts) > 2:
+            await call_soc_tool("get_scenario_gaps", {"scenario_id": parts[2]})
+        elif subcommand == "export" and len(parts) > 2:
+            scenario_id = parts[2]
+            output_path = parts[3] if len(parts) > 3 else ""
+            await call_soc_tool("export_threat_scenario", {"scenario_id": scenario_id, "output_path": output_path})
+        else:
+            print("Usage: scenarios [list|gaps <id>|export <id> [path]]")
+        return True
+
+    elif cmd_name == "create_scenario":
+        # usage: create_scenario <name> <description>
+        if len(parts) < 3:
+            print("Usage: create_scenario \"<name>\" \"<description>\"")
+            print("  Create a new threat scenario for tracking attack paths")
+            return True
+        name = parts[1]
+        description = " ".join(parts[2:])
+        await call_soc_tool("create_threat_scenario", {"name": name, "description": description})
+        return True
     
     return False  # Not a direct command
 
@@ -577,6 +660,18 @@ def print_help():
     print(f"   {Colors.DIM}   → 20 ECS event categories (authentication, network, file, etc.){Colors.RESET}")
     print(f"   {Colors.DIM}   → OpenTelemetry semantic conventions for observability{Colors.RESET}")
     
+    print(f"\n{Colors.RED}🎯 Threat Modeling & Attack Paths:{Colors.RESET}")
+    print(f"   {Colors.WHITE}load_pdf{Colors.RESET} <path> [name] [--gcs]     Load threat intel PDF as context")
+    print(f"   {Colors.WHITE}threat_intel{Colors.RESET} [list|clear]          Manage loaded threat intel context")
+    print(f"   {Colors.WHITE}threat_model{Colors.RESET} \"<content>\"           Analyze threat model document")
+    print(f"   {Colors.WHITE}tabletop{Colors.RESET} \"<minutes>\"               Analyze tabletop exercise minutes")
+    print(f"   {Colors.WHITE}scenarios{Colors.RESET} [list|gaps|export]       Manage threat scenarios")
+    print(f"   {Colors.WHITE}create_scenario{Colors.RESET} \"<name>\" \"<desc>\"  Create new threat scenario")
+    print(f"   {Colors.DIM}   → Extract security controls that must be bypassed{Colors.RESET}")
+    print(f"   {Colors.DIM}   → Map attack sequence events to defense-in-depth layers{Colors.RESET}")
+    print(f"   {Colors.DIM}   → Identify gaps and weakest points in attack chain{Colors.RESET}")
+    print(f"   {Colors.DIM}   → Export to markdown with control coverage matrix{Colors.RESET}")
+    
     print(f"\n{Colors.CYAN}🤖 Natural Language (AI-Powered):{Colors.RESET}")
     print(f"   {Colors.DIM}'Show me the top talkers from the web server logs'{Colors.RESET}")
     print(f"   {Colors.DIM}'Investigate suspicious activity from IP 192.168.1.100'{Colors.RESET}")
@@ -589,6 +684,8 @@ def print_help():
     print(f"   {Colors.CYAN}⚙ mill>{Colors.RESET} ls my-log-bucket/nginx")
     print(f"   {Colors.CYAN}⚙ mill>{Colors.RESET} scan access.log my-log-bucket")
     print(f"   {Colors.CYAN}⚙ mill>{Colors.RESET} templates access.log my-log-bucket --grok")
+    print(f"   {Colors.CYAN}⚙ mill>{Colors.RESET} load_pdf /path/to/mandiant-report.pdf")
+    print(f"   {Colors.CYAN}⚙ mill>{Colors.RESET} scenarios gaps TS-0001")
     print(f"   {Colors.CYAN}⚙ mill>{Colors.RESET} show me top talkers from access.log")
     
     print(f"\n{Colors.DIM}Type 'exit' to quit | Logs are read-only (exported data){Colors.RESET}")

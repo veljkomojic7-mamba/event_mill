@@ -2,6 +2,10 @@
 Threat Modeling Tools - Attack path analysis from threat models and tabletop exercises
 
 Tools:
+- load_threat_intel_pdf: Load a threat intel PDF report as context for analysis
+- load_threat_intel_text: Load threat intel text content as context
+- list_threat_intel_context: List loaded threat intel context
+- clear_threat_intel_context: Clear loaded threat intel context
 - analyze_threat_model: Parse threat model documents to extract attack paths and controls
 - analyze_tabletop_minutes: Parse tabletop exercise minutes for scenario analysis
 - create_threat_scenario: Create a new threat scenario for tracking
@@ -14,7 +18,17 @@ Tools:
 
 import logging
 import os
-from typing import Optional, List
+import io
+from typing import Optional, List, Dict
+from datetime import datetime
+
+# PDF reading support
+try:
+    import fitz  # pymupdf
+    PDF_SUPPORT = True
+except ImportError:
+    PDF_SUPPORT = False
+    logging.warning("pymupdf not installed. PDF reading disabled. Install with: pip install pymupdf")
 
 from system_context import (
     ThreatScenario,
@@ -30,6 +44,152 @@ from system_context import (
 )
 
 
+# =============================================================================
+# THREAT INTEL CONTEXT STORE
+# =============================================================================
+
+class ThreatIntelContext:
+    """
+    Stores threat intelligence context loaded from PDFs and text documents.
+    This context is injected into threat model analysis prompts.
+    """
+    
+    def __init__(self, max_context_chars: int = 100000):
+        self._documents: Dict[str, Dict] = {}  # doc_id -> {name, content, source, loaded_at}
+        self._max_context_chars = max_context_chars
+    
+    def add_document(self, name: str, content: str, source: str = "manual") -> str:
+        """Add a document to the context store. Returns document ID."""
+        doc_id = f"TI-{len(self._documents) + 1:04d}"
+        
+        # Truncate if too long
+        if len(content) > self._max_context_chars:
+            content = content[:self._max_context_chars] + "\n\n[TRUNCATED - Document exceeded max context length]"
+        
+        self._documents[doc_id] = {
+            "name": name,
+            "content": content,
+            "source": source,
+            "loaded_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "char_count": len(content)
+        }
+        return doc_id
+    
+    def get_document(self, doc_id: str) -> Optional[Dict]:
+        """Get a specific document by ID."""
+        return self._documents.get(doc_id)
+    
+    def get_all_documents(self) -> Dict[str, Dict]:
+        """Get all loaded documents."""
+        return self._documents.copy()
+    
+    def get_combined_context(self, max_chars: Optional[int] = None) -> str:
+        """Get combined context from all loaded documents."""
+        if not self._documents:
+            return ""
+        
+        sections = []
+        total_chars = 0
+        limit = max_chars or self._max_context_chars
+        
+        for doc_id, doc in self._documents.items():
+            header = f"\n{'='*60}\nTHREAT INTEL: {doc['name']} ({doc_id})\nSource: {doc['source']}\n{'='*60}\n"
+            section = header + doc["content"]
+            
+            if total_chars + len(section) > limit:
+                remaining = limit - total_chars
+                if remaining > 500:  # Only add if we can include meaningful content
+                    sections.append(section[:remaining] + "\n[TRUNCATED]")
+                break
+            
+            sections.append(section)
+            total_chars += len(section)
+        
+        return "\n".join(sections)
+    
+    def remove_document(self, doc_id: str) -> bool:
+        """Remove a document from the context store."""
+        if doc_id in self._documents:
+            del self._documents[doc_id]
+            return True
+        return False
+    
+    def clear(self) -> None:
+        """Clear all loaded documents."""
+        self._documents.clear()
+    
+    def get_summary(self) -> str:
+        """Get a summary of loaded documents."""
+        if not self._documents:
+            return "No threat intel context loaded."
+        
+        lines = [f"Loaded {len(self._documents)} threat intel document(s):"]
+        total_chars = 0
+        for doc_id, doc in self._documents.items():
+            lines.append(f"  - {doc_id}: {doc['name']} ({doc['char_count']:,} chars) - {doc['source']}")
+            total_chars += doc['char_count']
+        lines.append(f"Total context: {total_chars:,} characters")
+        return "\n".join(lines)
+
+
+# Global threat intel context store
+_threat_intel_context = ThreatIntelContext()
+
+
+def get_threat_intel_context() -> ThreatIntelContext:
+    """Get the global threat intel context store."""
+    return _threat_intel_context
+
+
+def extract_text_from_pdf(pdf_path: str) -> str:
+    """
+    Extract text content from a PDF file using pymupdf.
+    
+    Args:
+        pdf_path: Path to the PDF file
+    
+    Returns:
+        Extracted text content
+    """
+    if not PDF_SUPPORT:
+        raise ImportError("pymupdf not installed. Install with: pip install pymupdf")
+    
+    text_parts = []
+    
+    with fitz.open(pdf_path) as doc:
+        for page_num, page in enumerate(doc, 1):
+            text = page.get_text()
+            if text.strip():
+                text_parts.append(f"--- Page {page_num} ---\n{text}")
+    
+    return "\n\n".join(text_parts)
+
+
+def extract_text_from_pdf_bytes(pdf_bytes: bytes, filename: str = "document.pdf") -> str:
+    """
+    Extract text content from PDF bytes (e.g., from GCS).
+    
+    Args:
+        pdf_bytes: Raw PDF file bytes
+        filename: Name for reference
+    
+    Returns:
+        Extracted text content
+    """
+    if not PDF_SUPPORT:
+        raise ImportError("pymupdf not installed. Install with: pip install pymupdf")
+    
+    text_parts = []
+    
+    with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+        for page_num, page in enumerate(doc, 1):
+            text = page.get_text()
+            if text.strip():
+                text_parts.append(f"--- Page {page_num} ---\n{text}")
+    
+    return "\n\n".join(text_parts)
+
+
 def register_threat_modeling_tools(mcp, storage_client, gemini_client, get_bucket_func):
     """Register threat modeling tools with the MCP server."""
     
@@ -37,6 +197,177 @@ def register_threat_modeling_tools(mcp, storage_client, gemini_client, get_bucke
     _gemini_client = gemini_client
     _get_bucket = get_bucket_func
     _tracker = get_threat_scenario_tracker()
+    _threat_intel = get_threat_intel_context()
+
+    # =========================================================================
+    # THREAT INTEL CONTEXT TOOLS
+    # =========================================================================
+
+    @mcp.tool()
+    def load_threat_intel_pdf(
+        file_path: str,
+        document_name: str = "",
+        from_gcs: bool = False,
+        bucket_name: str = ""
+    ) -> str:
+        """
+        Loads a threat intelligence PDF report as context for subsequent threat model analysis.
+        The extracted text will be included as background context when analyzing threat models.
+        
+        Args:
+            file_path: Path to the PDF file (local path or GCS blob path if from_gcs=True)
+            document_name: Optional name for the document (defaults to filename)
+            from_gcs: If True, load from GCS bucket instead of local filesystem
+            bucket_name: GCS bucket name (required if from_gcs=True)
+        
+        Returns:
+            Confirmation with document ID and extracted content summary
+        """
+        if not PDF_SUPPORT:
+            return "Error: PDF support not available. Install pymupdf: pip install pymupdf"
+        
+        try:
+            name = document_name or os.path.basename(file_path)
+            
+            if from_gcs:
+                # Load from GCS
+                target_bucket = _get_bucket(bucket_name)
+                if not target_bucket:
+                    return "Error: No bucket specified and GCS_LOG_BUCKET not set."
+                if not _storage_client:
+                    return "Error: GCS Client not initialized."
+                
+                bucket = _storage_client.bucket(target_bucket)
+                blob = bucket.blob(file_path)
+                pdf_bytes = blob.download_as_bytes()
+                content = extract_text_from_pdf_bytes(pdf_bytes, name)
+                source = f"gcs://{target_bucket}/{file_path}"
+            else:
+                # Load from local filesystem
+                if not os.path.exists(file_path):
+                    return f"Error: File not found: {file_path}"
+                content = extract_text_from_pdf(file_path)
+                source = f"file://{file_path}"
+            
+            if not content.strip():
+                return f"Error: No text content could be extracted from {file_path}"
+            
+            doc_id = _threat_intel.add_document(name, content, source)
+            
+            # Count pages (approximate from markers)
+            page_count = content.count("--- Page ")
+            
+            output = []
+            output.append("✅ Threat Intel PDF Loaded")
+            output.append("")
+            output.append(f"**Document ID:** `{doc_id}`")
+            output.append(f"**Name:** {name}")
+            output.append(f"**Source:** {source}")
+            output.append(f"**Pages:** ~{page_count}")
+            output.append(f"**Characters:** {len(content):,}")
+            output.append("")
+            output.append("This context will be included in subsequent threat model analysis.")
+            output.append("")
+            output.append(_threat_intel.get_summary())
+            
+            return "\n".join(output)
+            
+        except Exception as e:
+            logging.error(f"Error loading threat intel PDF: {e}")
+            return f"Error loading threat intel PDF: {str(e)}"
+
+    @mcp.tool()
+    def load_threat_intel_text(
+        content: str,
+        document_name: str,
+        source: str = "manual_input"
+    ) -> str:
+        """
+        Loads threat intelligence text content as context for subsequent threat model analysis.
+        Use this for pasting threat intel reports, advisories, or other text content.
+        
+        Args:
+            content: The text content to load as context
+            document_name: Name for the document
+            source: Source reference (e.g., 'CISA Advisory', 'Mandiant Report')
+        
+        Returns:
+            Confirmation with document ID
+        """
+        try:
+            if not content.strip():
+                return "Error: No content provided."
+            
+            doc_id = _threat_intel.add_document(document_name, content, source)
+            
+            output = []
+            output.append("✅ Threat Intel Text Loaded")
+            output.append("")
+            output.append(f"**Document ID:** `{doc_id}`")
+            output.append(f"**Name:** {document_name}")
+            output.append(f"**Source:** {source}")
+            output.append(f"**Characters:** {len(content):,}")
+            output.append("")
+            output.append("This context will be included in subsequent threat model analysis.")
+            output.append("")
+            output.append(_threat_intel.get_summary())
+            
+            return "\n".join(output)
+            
+        except Exception as e:
+            logging.error(f"Error loading threat intel text: {e}")
+            return f"Error loading threat intel text: {str(e)}"
+
+    @mcp.tool()
+    def list_threat_intel_context() -> str:
+        """
+        Lists all loaded threat intelligence context documents.
+        
+        Returns:
+            Summary of all loaded threat intel documents
+        """
+        summary = _threat_intel.get_summary()
+        
+        if not _threat_intel._documents:
+            return summary + "\n\nUse 'load_threat_intel_pdf' or 'load_threat_intel_text' to add context."
+        
+        output = []
+        output.append("=" * 60)
+        output.append("📚 THREAT INTEL CONTEXT")
+        output.append("=" * 60)
+        output.append("")
+        output.append(summary)
+        output.append("")
+        output.append("Commands:")
+        output.append("  - Add PDF: load_threat_intel_pdf(file_path='...')")
+        output.append("  - Add text: load_threat_intel_text(content='...', document_name='...')")
+        output.append("  - Clear all: clear_threat_intel_context()")
+        
+        return "\n".join(output)
+
+    @mcp.tool()
+    def clear_threat_intel_context(document_id: str = "") -> str:
+        """
+        Clears loaded threat intelligence context.
+        
+        Args:
+            document_id: Optional specific document ID to remove. If empty, clears all.
+        
+        Returns:
+            Confirmation of cleared context
+        """
+        if document_id:
+            if _threat_intel.remove_document(document_id):
+                return f"✅ Removed threat intel document: {document_id}\n\n{_threat_intel.get_summary()}"
+            else:
+                return f"Error: Document '{document_id}' not found."
+        else:
+            _threat_intel.clear()
+            return "✅ Cleared all threat intel context."
+
+    # =========================================================================
+    # THREAT MODEL ANALYSIS TOOLS
+    # =========================================================================
 
     @mcp.tool()
     def analyze_threat_model(
@@ -62,9 +393,28 @@ def register_threat_modeling_tools(mcp, storage_client, gemini_client, get_bucke
             return "Error: GEMINI_API_KEY not set. AI analysis features are disabled."
         
         try:
+            # Get threat intel context if available
+            threat_intel_context = _threat_intel.get_combined_context()
+            
+            # Build enhanced document content with threat intel context
+            if threat_intel_context:
+                enhanced_content = f"""THREAT INTELLIGENCE CONTEXT:
+The following threat intelligence has been loaded to provide background context for this analysis.
+Use this information to inform your understanding of threat actors, TTPs, and attack patterns.
+
+{threat_intel_context}
+
+{'='*60}
+THREAT MODEL DOCUMENT TO ANALYZE:
+{'='*60}
+
+{document_content}"""
+            else:
+                enhanced_content = document_content
+            
             prompt = get_threat_model_analysis_prompt(
                 source_type=source_type,
-                document_content=document_content,
+                document_content=enhanced_content,
                 include_history=True
             )
             
@@ -77,6 +427,8 @@ def register_threat_modeling_tools(mcp, storage_client, gemini_client, get_bucke
             output.append("=" * 60)
             output.append("🎯 THREAT MODEL ANALYSIS")
             output.append(f"Source: {source_type} - {source_document}")
+            if threat_intel_context:
+                output.append(f"📚 Threat Intel Context: {len(_threat_intel._documents)} document(s) applied")
             output.append("=" * 60)
             output.append("")
             output.append(response.text)
@@ -123,9 +475,28 @@ def register_threat_modeling_tools(mcp, storage_client, gemini_client, get_bucke
             if exercise_date:
                 exercise_details += f" (Date: {exercise_date})"
             
+            # Get threat intel context if available
+            threat_intel_context = _threat_intel.get_combined_context()
+            
+            # Build enhanced minutes content with threat intel context
+            if threat_intel_context:
+                enhanced_content = f"""THREAT INTELLIGENCE CONTEXT:
+The following threat intelligence has been loaded to provide background context for this analysis.
+Use this information to inform your understanding of threat actors, TTPs, and attack patterns.
+
+{threat_intel_context}
+
+{'='*60}
+TABLETOP EXERCISE MINUTES TO ANALYZE:
+{'='*60}
+
+{minutes_content}"""
+            else:
+                enhanced_content = minutes_content
+            
             prompt = get_tabletop_minutes_prompt(
                 exercise_details=exercise_details,
-                minutes_content=minutes_content,
+                minutes_content=enhanced_content,
                 include_history=True
             )
             
@@ -140,6 +511,8 @@ def register_threat_modeling_tools(mcp, storage_client, gemini_client, get_bucke
             output.append(f"Exercise: {exercise_name}")
             if exercise_date:
                 output.append(f"Date: {exercise_date}")
+            if threat_intel_context:
+                output.append(f"📚 Threat Intel Context: {len(_threat_intel._documents)} document(s) applied")
             output.append("=" * 60)
             output.append("")
             output.append(response.text)

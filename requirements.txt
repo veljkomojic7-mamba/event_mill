@@ -4,3 +4,4 @@ python-dotenv
 uvicorn
 starlette
 google-genai
+pymupdf
