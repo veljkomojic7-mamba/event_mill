@@ -10,7 +10,18 @@ import os
 import re
 import json
 import random
+import atexit
 from typing import Dict, Any, List, Tuple
+
+# Command history support
+try:
+    import readline
+except ImportError:
+    # Windows fallback
+    try:
+        import pyreadline3 as readline
+    except ImportError:
+        readline = None
 
 # Ensure we can import mcp
 from mcp import ClientSession, StdioServerParameters
@@ -295,7 +306,34 @@ Provide a concise summary relevant to SOC analysis.
         except Exception as e:
             return f"Unable to get file context: {str(e)}"
 
+def setup_readline():
+    """Configure readline for command history and editing."""
+    if readline is None:
+        return
+    
+    # History file location
+    history_file = os.path.join(os.path.expanduser("~"), ".eventmill_history")
+    
+    # Set history length
+    readline.set_history_length(200)
+    
+    # Load existing history
+    try:
+        readline.read_history_file(history_file)
+    except FileNotFoundError:
+        pass
+    
+    # Save history on exit
+    atexit.register(readline.write_history_file, history_file)
+    
+    # Enable tab completion (basic)
+    readline.parse_and_bind("tab: complete")
+
+
 async def run_conversational_soc_client():
+    # Setup command history
+    setup_readline()
+    
     server_script = os.path.join(os.path.dirname(__file__), "server.py")
     
     print(f"🔌 Connecting to MCP Server: {server_script}...")
