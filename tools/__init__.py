@@ -11,6 +11,7 @@ Modules:
 - investigation: AI-powered investigation (investigate_log, soc_workflow)
 - templates: Template generation (generate_pattern_templates, get_parsing_patterns)
 - threat_modeling: Threat model and tabletop analysis (analyze_threat_model, create_threat_scenario, etc.)
+- risk_assessment: Risk assessment PDF analysis (analyze_risk_assessment_pdf, list_attack_types)
 """
 
 from tools.navigation import register_navigation_tools
@@ -19,6 +20,7 @@ from tools.analysis import register_analysis_tools
 from tools.investigation import register_investigation_tools
 from tools.templates import register_template_tools
 from tools.threat_modeling import register_threat_modeling_tools
+from tools.risk_assessment import register_risk_assessment_tools
 
 # Module-level reference for gemini_client (set by register_all_tools)
 _gemini_client = None
@@ -34,3 +36,4 @@ def register_all_tools(mcp, storage_client, gemini_client, get_bucket_func):
     register_investigation_tools(mcp, storage_client, gemini_client, get_bucket_func)
     register_template_tools(mcp, storage_client, gemini_client, get_bucket_func)
     register_threat_modeling_tools(mcp, storage_client, gemini_client, get_bucket_func)
+    register_risk_assessment_tools(mcp, storage_client, gemini_client, get_bucket_func)

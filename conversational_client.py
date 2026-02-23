@@ -665,6 +665,45 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
         await call_soc_tool("analyze_tabletop_minutes", {"minutes_content": minutes_content})
         return True
 
+    elif cmd_name == "risk_assessment" or cmd_name == "ra":
+        # usage: risk_assessment <pdf_path> [attack_type] [--gcs] [--json]
+        if len(parts) < 2:
+            print("Usage: risk_assessment <pdf_path> [attack_type] [--gcs] [--json]")
+            print("       ra <pdf_path> [attack_type] [--gcs] [--json]")
+            print("")
+            print("  Analyze risk assessment PDF for attack path validation against MITRE ICS stages")
+            print("")
+            print("  Attack types: ddos, ransomware, data_theft, apt, insider_threat, web_attack, generic")
+            print("  --json: Output as structured JSON instead of text")
+            print("")
+            print("  Examples:")
+            print("    ra /path/to/risk-assessment.pdf ransomware")
+            print("    ra assessments/internal-tm.pdf apt --gcs")
+            print("    ra report.pdf data_theft --gcs --json")
+            print("")
+            print("  Use 'attack_types' to see stage requirements for each attack type")
+            return True
+        
+        file_path = parts[1]
+        from_gcs = "--gcs" in parts
+        output_json = "--json" in parts
+        # Filter out flags
+        remaining = [p for p in parts[2:] if p.lower() not in ("--gcs", "--json", "true", "false")]
+        attack_type = remaining[0] if remaining else "generic"
+        
+        await call_soc_tool("analyze_risk_assessment_pdf", {
+            "file_path": file_path,
+            "attack_type": attack_type,
+            "output_format": "json" if output_json else "text",
+            "from_gcs": from_gcs
+        })
+        return True
+
+    elif cmd_name == "attack_types":
+        # usage: attack_types - list available attack types and their stage requirements
+        await call_soc_tool("list_attack_types", {})
+        return True
+
     elif cmd_name == "scenarios":
         # usage: scenarios [list|gaps <id>|export <id> [path]]
         subcommand = parts[1] if len(parts) > 1 else "list"
@@ -738,6 +777,14 @@ def print_help():
     print(f"   {Colors.DIM}   → Map attack sequence events to defense-in-depth layers{Colors.RESET}")
     print(f"   {Colors.DIM}   → Identify gaps and weakest points in attack chain{Colors.RESET}")
     print(f"   {Colors.DIM}   → Export to markdown with control coverage matrix{Colors.RESET}")
+    
+    print(f"\n{Colors.YELLOW}📊 Risk Assessment:{Colors.RESET}")
+    print(f"   {Colors.WHITE}ra{Colors.RESET} <pdf> [type] [--gcs] [--json]  Analyze risk assessment PDF")
+    print(f"   {Colors.WHITE}attack_types{Colors.RESET}                       List attack types & stage requirements")
+    print(f"   {Colors.DIM}   → Validates attack paths against MITRE ICS stages{Colors.RESET}")
+    print(f"   {Colors.DIM}   → Flags missing stages relevant to attack type{Colors.RESET}")
+    print(f"   {Colors.DIM}   → Assesses control effectiveness with evidence basis{Colors.RESET}")
+    print(f"   {Colors.DIM}   → Types: ddos, ransomware, data_theft, apt, insider_threat, web_attack{Colors.RESET}")
     
     print(f"\n{Colors.CYAN}🤖 Natural Language (AI-Powered):{Colors.RESET}")
     print(f"   {Colors.DIM}'Show me the top talkers from the web server logs'{Colors.RESET}")
