@@ -8,28 +8,24 @@ This tool analyzes internal risk assessment and threat modeling reports to:
 - Flag independence violations and duplicate controls
 - Output in JSON or metasploit-style text format
 
-MITRE ICS Attack Stages:
-1. Initial Access - How the adversary gains entry
-2. Execution - Running malicious code
-3. Persistence - Maintaining foothold
-4. Privilege Escalation - Gaining higher permissions
-5. Defense Evasion - Avoiding detection
-6. Credential Access - Stealing credentials
-7. Discovery - Learning the environment
-8. Lateral Movement - Moving through the network
-9. Collection - Gathering target data
-10. Command and Control - Communicating with compromised systems
-11. Exfiltration - Stealing data out
-12. Impact/Action on Objective - Final goal achievement
+Context files are loaded from: context/risk_assessment/
+- methodology.md - Scoring methodology and workflow
+- constraints.md - Safety guardrails and determinism boundary
+- role.md - LLM assistant role definition
+
+Stage catalog loaded from: tools/stage_catalog.json
 """
 
 import logging
 import os
 import json
+import re
+from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
 from enum import Enum
+from functools import lru_cache
 
 # PDF reading support
 try:
@@ -38,6 +34,142 @@ try:
 except ImportError:
     PDF_SUPPORT = False
     logging.warning("pymupdf not installed. PDF reading disabled.")
+
+
+# =============================================================================
+# CONTEXT LOADING
+# =============================================================================
+
+def _get_context_dir() -> Path:
+    """Get the path to the risk_assessment context directory."""
+    # tools/risk_assessment.py -> context/risk_assessment/
+    tools_dir = Path(__file__).parent
+    return tools_dir.parent / "context" / "risk_assessment"
+
+
+def _get_stage_catalog_path() -> Path:
+    """Get the path to the stage catalog JSON file."""
+    return Path(__file__).parent / "stage_catalog.json"
+
+
+@lru_cache(maxsize=1)
+def load_stage_catalog() -> Dict[str, Any]:
+    """
+    Load the stage catalog from stage_catalog.json.
+    Returns the parsed JSON with stage definitions and MITRE references.
+    """
+    catalog_path = _get_stage_catalog_path()
+    if not catalog_path.exists():
+        logging.warning(f"Stage catalog not found: {catalog_path}")
+        return {"stages": []}
+    
+    with open(catalog_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _compress_markdown(content: str) -> str:
+    """
+    Compress markdown content for LLM context by:
+    - Removing excessive whitespace
+    - Removing horizontal rules
+    - Condensing headers
+    - Removing code block formatting (keep content)
+    """
+    # Remove horizontal rules
+    content = re.sub(r'^-{3,}$', '', content, flags=re.MULTILINE)
+    content = re.sub(r'^\*{3,}$', '', content, flags=re.MULTILINE)
+    
+    # Condense multiple blank lines to single
+    content = re.sub(r'\n{3,}', '\n\n', content)
+    
+    # Remove leading/trailing whitespace per line
+    lines = [line.strip() for line in content.split('\n')]
+    content = '\n'.join(lines)
+    
+    # Remove empty lines at start/end
+    content = content.strip()
+    
+    return content
+
+
+@lru_cache(maxsize=3)
+def load_context_file(filename: str) -> str:
+    """
+    Load and compress a context markdown file.
+    
+    Args:
+        filename: Name of the file (e.g., 'methodology.md')
+    
+    Returns:
+        Compressed markdown content
+    """
+    context_dir = _get_context_dir()
+    file_path = context_dir / filename
+    
+    if not file_path.exists():
+        logging.warning(f"Context file not found: {file_path}")
+        return ""
+    
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    
+    return _compress_markdown(content)
+
+
+def build_compressed_context() -> str:
+    """
+    Build a compressed context string from all context files.
+    This provides the LLM with methodology, constraints, and role information
+    while minimizing token usage.
+    """
+    sections = []
+    
+    # Load role (most important for LLM behavior)
+    role = load_context_file("role.md")
+    if role:
+        sections.append(f"=== ROLE ===\n{role}")
+    
+    # Load constraints (safety guardrails)
+    constraints = load_context_file("constraints.md")
+    if constraints:
+        sections.append(f"=== CONSTRAINTS ===\n{constraints}")
+    
+    # Load methodology (scoring and workflow) - extract key sections only
+    methodology = load_context_file("methodology.md")
+    if methodology:
+        # Extract only the most critical sections for context
+        key_sections = []
+        
+        # Extract scoring formula
+        if "CompositeScore" in methodology:
+            match = re.search(r'CompositeScore.*?0\.38\)', methodology, re.DOTALL)
+            if match:
+                key_sections.append(f"Scoring: {match.group(0)}")
+        
+        # Extract control state values
+        if "State" in methodology and "absent" in methodology:
+            key_sections.append("Control States: absent | partial | present | unknown")
+            key_sections.append("Scope Values: all | most | some | few | unknown")
+        
+        if key_sections:
+            sections.append(f"=== METHODOLOGY (KEY POINTS) ===\n" + "\n".join(key_sections))
+    
+    return "\n\n".join(sections)
+
+
+def get_stage_names_from_catalog() -> List[str]:
+    """Get canonical stage names from the stage catalog."""
+    catalog = load_stage_catalog()
+    return [stage["canonical_name"] for stage in catalog.get("stages", [])]
+
+
+def get_stage_by_id(stage_id: str) -> Optional[Dict[str, Any]]:
+    """Get a stage definition by its ID from the catalog."""
+    catalog = load_stage_catalog()
+    for stage in catalog.get("stages", []):
+        if stage.get("stage_id") == stage_id:
+            return stage
+    return None
 
 
 # =============================================================================
@@ -325,7 +457,40 @@ class RiskAssessmentResult:
 # PROMPT FOR LLM ANALYSIS
 # =============================================================================
 
-RISK_ASSESSMENT_ANALYSIS_PROMPT = """You are a security analyst reviewing an internal risk assessment report.
+def build_risk_assessment_prompt(
+    attack_type: str,
+    required_stages: str,
+    optional_stages: str,
+    not_applicable_stages: str,
+    document_content: str,
+    output_schema: str,
+    include_context: bool = True
+) -> str:
+    """
+    Build the risk assessment analysis prompt with compressed context.
+    
+    Args:
+        attack_type: Type of attack being analyzed
+        required_stages: Comma-separated required stages
+        optional_stages: Comma-separated optional stages
+        not_applicable_stages: Comma-separated N/A stages
+        document_content: Extracted document text
+        output_schema: JSON schema for output
+        include_context: Whether to include compressed context from markdown files
+    
+    Returns:
+        Complete prompt string
+    """
+    sections = []
+    
+    # Include compressed context if available
+    if include_context:
+        compressed_context = build_compressed_context()
+        if compressed_context:
+            sections.append(compressed_context)
+    
+    # Core prompt
+    core_prompt = f"""You are a security analyst reviewing an internal risk assessment report.
 Your task is to extract and validate the attack path narrative against MITRE ICS attack stages.
 
 CRITICAL INSTRUCTIONS:
@@ -376,6 +541,9 @@ ANALYSIS TASKS:
 RESPOND WITH VALID JSON ONLY - no markdown, no explanation, just the JSON object:
 {output_schema}
 """
+    sections.append(core_prompt)
+    
+    return "\n\n".join(sections)
 
 
 # =============================================================================
@@ -535,14 +703,15 @@ def register_risk_assessment_tools(mcp, storage_client, gemini_client, get_bucke
                 "analysis_notes": []
             }, indent=2)
             
-            # Build prompt
-            prompt = RISK_ASSESSMENT_ANALYSIS_PROMPT.format(
+            # Build prompt with compressed context
+            prompt = build_risk_assessment_prompt(
                 attack_type=attack_type,
                 required_stages=", ".join(required_stages),
                 optional_stages=", ".join(optional_stages) if optional_stages else "None",
                 not_applicable_stages=", ".join(not_applicable_stages) if not_applicable_stages else "None",
                 document_content=document_content[:50000],  # Limit content size
-                output_schema=output_schema
+                output_schema=output_schema,
+                include_context=True
             )
             
             # Call Gemini
@@ -657,5 +826,65 @@ def register_risk_assessment_tools(mcp, storage_client, gemini_client, get_bucke
                     lines.append(f"      - {stage.value}")
             
             lines.append("")
+        
+        return "\n".join(lines)
+
+    @mcp.tool()
+    def show_risk_assessment_context() -> str:
+        """
+        Shows the loaded context files used for risk assessment analysis.
+        Useful for debugging and understanding what context is provided to the LLM.
+        
+        Returns:
+            Summary of loaded context files and stage catalog
+        """
+        lines = []
+        lines.append("=" * 60)
+        lines.append("RISK ASSESSMENT CONTEXT")
+        lines.append("=" * 60)
+        lines.append("")
+        
+        # Context directory
+        context_dir = _get_context_dir()
+        lines.append(f"[*] Context Directory: {context_dir}")
+        lines.append(f"    Exists: {context_dir.exists()}")
+        lines.append("")
+        
+        # Context files
+        context_files = ["role.md", "constraints.md", "methodology.md"]
+        lines.append("[*] Context Files:")
+        for filename in context_files:
+            filepath = context_dir / filename
+            if filepath.exists():
+                size = filepath.stat().st_size
+                content = load_context_file(filename)
+                compressed_size = len(content)
+                lines.append(f"    [+] {filename}")
+                lines.append(f"        Original: {size:,} bytes")
+                lines.append(f"        Compressed: {compressed_size:,} chars")
+            else:
+                lines.append(f"    [-] {filename} (NOT FOUND)")
+        lines.append("")
+        
+        # Stage catalog
+        catalog_path = _get_stage_catalog_path()
+        lines.append(f"[*] Stage Catalog: {catalog_path}")
+        lines.append(f"    Exists: {catalog_path.exists()}")
+        
+        catalog = load_stage_catalog()
+        if catalog.get("stages"):
+            lines.append(f"    Stages: {len(catalog['stages'])}")
+            lines.append(f"    Version: {catalog.get('schema_version', 'unknown')}")
+            lines.append("")
+            lines.append("[*] Stage Catalog Contents:")
+            for stage in catalog["stages"]:
+                mitre_id = stage.get("mitre", {}).get("enterprise_tactic_id", "N/A")
+                lines.append(f"    - {stage['canonical_name']} ({mitre_id})")
+        lines.append("")
+        
+        # Compressed context preview
+        compressed = build_compressed_context()
+        lines.append(f"[*] Compressed Context Size: {len(compressed):,} chars")
+        lines.append("")
         
         return "\n".join(lines)

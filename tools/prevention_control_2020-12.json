@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eventmill.local/schemas/prevention-controls-minimal-2020-12.json",
+  "title": "Eventmill Prevention Controls (Minimal, Sparse Allowed)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "prevention_controls"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "prevention_controls": {
+      "type": "object",
+      "additionalProperties": false,
+
+      "properties": {
+        "authentication_controls": { "$ref": "#/$defs/control_group_authentication" },
+        "identity_hygiene": { "$ref": "#/$defs/control_group_identity_hygiene" },
+        "authorization_controls": { "$ref": "#/$defs/control_group_authorization" },
+        "network_and_access_surface_constraints": { "$ref": "#/$defs/control_group_network_access_surface" },
+        "endpoint_and_execution_controls": { "$ref": "#/$defs/control_group_endpoint_execution" },
+        "data_access_controls": { "$ref": "#/$defs/control_group_data_access" },
+        "runtime_and_platform_constraints": { "$ref": "#/$defs/control_group_runtime_platform" },
+        "vulnerability_and_change_management": { "$ref": "#/$defs/control_group_vuln_change" },
+        "email_security_controls": { "$ref": "#/$defs/control_group_email_security" },
+        "cloud_and_saas_guardrails": { "$ref": "#/$defs/control_group_cloud_saas" },
+        "backup_and_resilience_constraints": { "$ref": "#/$defs/control_group_backup_resilience" }
+      }
+    }
+  },
+
+  "$defs": {
+    "state_enum": {
+      "type": "string",
+      "enum": ["absent", "partial", "present", "unknown"]
+    },
+    "scope_enum": {
+      "type": "string",
+      "enum": ["all", "most", "some", "few", "unknown"]
+    },
+    "evidence_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "ref": { "type": "string", "minLength": 1 },
+        "note": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "ref"]
+    },
+
+    "control_base": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state"],
+      "properties": {
+        "state": { "$ref": "#/$defs/state_enum" },
+        "scope": { "$ref": "#/$defs/scope_enum" },
+
+        "implementation": {
+          "type": "object",
+          "description": "Control-specific implementation details. Intentionally flexible.",
+          "additionalProperties": true
+        },
+
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence_item" },
+          "default": []
+        }
+      }
+    },
+
+    "control_group_authentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pwd_static": { "$ref": "#/$defs/control_base" },
+        "pwd_dynamic": { "$ref": "#/$defs/control_base" },
+        "mfa": { "$ref": "#/$defs/control_base" },
+        "attribute_constraints": { "$ref": "#/$defs/control_base" }
+      }
+    },
+
+    "control_group_identity_hygiene": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "legacy_auth_disabled": { "$ref": "#/$defs/control_base" },
+        "password_spray_resistance": { "$ref": "#/$defs/control_base" },
+        "guest_and_external_access": { "$ref": "#/$defs/control_base" },
+        "service_account_governance": { "$ref": "#/$defs/control_base" }
+      }
+    },
+
+    "control_group_authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rbac_least_privilege": { "$ref": "#/$defs/control_base" },
+        "persistent_admin_roles": { "$ref": "#/$defs/control_base" },
+        "privilege_escalation_controls": { "$ref": "#/$defs/control_base" }
+      }
+    },
+
+    "control_group_network_access_surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "logical_access_constraint": { "$ref": "#/$defs/control_base" },
+        "network_segmentation": { "$ref": "#/$defs/control_base" },
+        "edge_protection": { "$ref": "#/$defs/control_base" }
+      }
+    },
+
+    "control_group_endpoint_execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "process_access_constraint": { "$ref": "#/$defs/control_base" },
+        "endpoint_baseline_hardening": { "$ref": "#/$defs/control_base" }
+      }
+    },
+
+    "control_group_data_access": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "data_access_constraint": { "$ref": "#/$defs/control_base" },
+        "secrets_management": { "$ref": "#/$defs/control_base" }
+      }
+    },
+
+    "control_group_runtime_platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "specialized_runtime": { "$ref": "#/$defs/control_base" },
+        "platform_guardrails": { "$ref": "#/$defs/control_base" }
+      }
+    },
+
+    "control_group_vuln_change": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "vulnerability_management": { "$ref": "#/$defs/control_base" },
+        "patch_management": { "$ref": "#/$defs/control_base" }
+      }
+    },
+
+    "control_group_email_security": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "secure_email_gateway": { "$ref": "#/$defs/control_base" },
+        "email_domain_controls": { "$ref": "#/$defs/control_base" }
+      }
+    },
+
+    "control_group_cloud_saas": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cloud_posture_controls": { "$ref": "#/$defs/control_base" },
+        "saas_controls": { "$ref": "#/$defs/control_base" }
+      }
+    },
+
+    "control_group_backup_resilience": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "backup_resilience": { "$ref": "#/$defs/control_base" }
+      }
+    }
+  }
+}

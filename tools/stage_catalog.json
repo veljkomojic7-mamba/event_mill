@@ -1,0 +1,247 @@
+{
+  "schema_version": "stage-catalog-1.0",
+  "generated_utc": "2026-03-02T01:33:40Z",
+  "notes": [
+    "Minimal, stable stage catalog for Eventmill attack-path modeling.",
+    "Full MITRE ATT&CK / ATT&CK for ICS technique-level detail is resolved on-demand via mitre_reference_tool.",
+    "Stage feasibility scoring uses control inputs; MITRE mapping is for traceability only."
+  ],
+  "source_frameworks": [
+    {
+      "name": "MITRE ATT&CK Enterprise",
+      "type": "tactic_reference",
+      "base_url": "https://attack.mitre.org/tactics/",
+      "data_source": "On-demand via mitre_reference_tool (local STIX/JSON mirror recommended)."
+    },
+    {
+      "name": "MITRE ATT&CK for ICS",
+      "type": "tactic_reference",
+      "base_url": "https://attack.mitre.org/tactics/",
+      "data_source": "On-demand via mitre_reference_tool (local STIX/JSON mirror recommended)."
+    }
+  ],
+  "stages": [
+    {
+      "stage_id": "initial_access",
+      "canonical_name": "Initial Access",
+      "objective": "Gain an initial foothold into the target environment.",
+      "scope_in": [
+        "External entry vector selection",
+        "User/application/service entry point compromise",
+        "Valid account entry"
+      ],
+      "scope_out": [
+        "Privilege escalation",
+        "Lateral movement",
+        "Persistence mechanisms"
+      ],
+      "mitre": {
+        "enterprise_tactic_id": "TA0001",
+        "enterprise_url": "https://attack.mitre.org/tactics/TA0001/"
+      }
+    },
+    {
+      "stage_id": "execution",
+      "canonical_name": "Execution",
+      "objective": "Run adversary-controlled code or logic within the target environment.",
+      "scope_in": [
+        "Command/script execution",
+        "Macro execution",
+        "Interpreter invocation",
+        "Remote execution trigger"
+      ],
+      "scope_out": [
+        "Persistence setup",
+        "Privilege escalation",
+        "Defense evasion optimizations"
+      ],
+      "mitre": {
+        "enterprise_tactic_id": "TA0002",
+        "enterprise_url": "https://attack.mitre.org/tactics/TA0002/"
+      }
+    },
+    {
+      "stage_id": "persistence",
+      "canonical_name": "Persistence",
+      "objective": "Maintain access across restarts, credential changes, or defensive remediation.",
+      "scope_in": [
+        "Autostart modifications",
+        "Scheduled execution",
+        "Account persistence",
+        "Service persistence"
+      ],
+      "scope_out": [
+        "Initial entry",
+        "Privilege escalation (unless integral to persistence)"
+      ],
+      "mitre": {
+        "enterprise_tactic_id": "TA0003",
+        "enterprise_url": "https://attack.mitre.org/tactics/TA0003/"
+      }
+    },
+    {
+      "stage_id": "privilege_escalation",
+      "canonical_name": "Privilege Escalation",
+      "objective": "Gain higher privileges than those initially obtained.",
+      "scope_in": [
+        "Abuse of misconfigurations",
+        "Exploitation for elevation",
+        "Role escalation",
+        "Token/credential privilege elevation"
+      ],
+      "scope_out": [
+        "Initial access",
+        "Lateral movement (movement happens after privileges are gained)"
+      ],
+      "mitre": {
+        "enterprise_tactic_id": "TA0004",
+        "enterprise_url": "https://attack.mitre.org/tactics/TA0004/"
+      }
+    },
+    {
+      "stage_id": "defense_evasion",
+      "canonical_name": "Defense Evasion",
+      "objective": "Reduce detection likelihood or defeat defensive controls.",
+      "scope_in": [
+        "Obfuscation",
+        "Security control impairment",
+        "Log tampering (high-level)",
+        "Indicator suppression"
+      ],
+      "scope_out": [
+        "Step-by-step evasion tradecraft",
+        "Weaponized bypass instructions"
+      ],
+      "mitre": {
+        "enterprise_tactic_id": "TA0005",
+        "enterprise_url": "https://attack.mitre.org/tactics/TA0005/"
+      }
+    },
+    {
+      "stage_id": "credential_access",
+      "canonical_name": "Credential Access",
+      "objective": "Obtain credentials or authentication material to expand access.",
+      "scope_in": [
+        "Credential harvesting (high-level)",
+        "Token acquisition (high-level)",
+        "Credential reuse attempts (high-level)"
+      ],
+      "scope_out": [
+        "Detailed instructions for credential theft",
+        "Tool-specific commands"
+      ],
+      "mitre": {
+        "enterprise_tactic_id": "TA0006",
+        "enterprise_url": "https://attack.mitre.org/tactics/TA0006/"
+      }
+    },
+    {
+      "stage_id": "discovery",
+      "canonical_name": "Discovery",
+      "objective": "Learn about the environment to enable follow-on actions.",
+      "scope_in": [
+        "Asset/service enumeration (high-level)",
+        "Identity and permission discovery (high-level)",
+        "Network topology inference (high-level)"
+      ],
+      "scope_out": [
+        "Scanning command lists",
+        "Operational recon playbooks"
+      ],
+      "mitre": {
+        "enterprise_tactic_id": "TA0007",
+        "enterprise_url": "https://attack.mitre.org/tactics/TA0007/"
+      }
+    },
+    {
+      "stage_id": "lateral_movement",
+      "canonical_name": "Lateral Movement",
+      "objective": "Move from one system/account boundary to another within the environment.",
+      "scope_in": [
+        "Remote access between hosts (high-level)",
+        "Remote service use (high-level)",
+        "Session hopping (high-level)"
+      ],
+      "scope_out": [
+        "Tool-specific lateral movement steps",
+        "Exploit chains"
+      ],
+      "mitre": {
+        "enterprise_tactic_id": "TA0008",
+        "enterprise_url": "https://attack.mitre.org/tactics/TA0008/"
+      }
+    },
+    {
+      "stage_id": "collection",
+      "canonical_name": "Collection",
+      "objective": "Gather data of interest prior to exfiltration or on-objective impact.",
+      "scope_in": [
+        "File/email/db data gathering (high-level)",
+        "Staging data for transfer (high-level)"
+      ],
+      "scope_out": [
+        "Detailed data theft procedures",
+        "Target-specific extraction steps"
+      ],
+      "mitre": {
+        "enterprise_tactic_id": "TA0009",
+        "enterprise_url": "https://attack.mitre.org/tactics/TA0009/"
+      }
+    },
+    {
+      "stage_id": "command_and_control",
+      "canonical_name": "Command and Control",
+      "objective": "Establish and maintain communication with compromised assets.",
+      "scope_in": [
+        "C2 channel categories (high-level)",
+        "Protocol families (high-level)",
+        "Beaconing conceptually"
+      ],
+      "scope_out": [
+        "C2 setup instructions",
+        "Evasion/implant configuration"
+      ],
+      "mitre": {
+        "enterprise_tactic_id": "TA0011",
+        "enterprise_url": "https://attack.mitre.org/tactics/TA0011/"
+      }
+    },
+    {
+      "stage_id": "exfiltration",
+      "canonical_name": "Exfiltration",
+      "objective": "Transfer data out of the environment boundary.",
+      "scope_in": [
+        "Exfil channel categories (high-level)",
+        "Use of cloud services (high-level)",
+        "Egress constraint considerations"
+      ],
+      "scope_out": [
+        "Step-by-step exfiltration instructions",
+        "Tooling guidance"
+      ],
+      "mitre": {
+        "enterprise_tactic_id": "TA0010",
+        "enterprise_url": "https://attack.mitre.org/tactics/TA0010/"
+      }
+    },
+    {
+      "stage_id": "impact",
+      "canonical_name": "Impact / Action on Objective",
+      "objective": "Achieve the adversary\u2019s intended outcome (disruption, manipulation, destruction, extortion, etc.).",
+      "scope_in": [
+        "Outcome categories (high-level)",
+        "Business/operational impact framing",
+        "ICS process impact categories (high-level)"
+      ],
+      "scope_out": [
+        "Detailed destructive instructions",
+        "Operational sabotage playbooks"
+      ],
+      "mitre": {
+        "enterprise_tactic_id": "TA0040",
+        "enterprise_url": "https://attack.mitre.org/tactics/TA0040/",
+        "ics_note": "Some impact outcomes are especially relevant to ICS; technique-level mapping is resolved via mitre_reference_tool when needed."
+      }
+    }
+  ]
+}

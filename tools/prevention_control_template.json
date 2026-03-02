@@ -1,0 +1,347 @@
+{
+  "schema_version": "prevention-controls-1.0",
+  "prevention_controls": {
+    "authentication_controls": {
+      "pwd_static": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "human_known_secret": true,
+          "vault_used": "unknown",
+          "rotation_days": null,
+          "min_length": null,
+          "lockout_threshold": null
+        },
+        "evidence": []
+      },
+      "pwd_dynamic": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "brokered_or_fetched": "unknown",
+          "rotation_hours": null,
+          "short_lived": "unknown",
+          "service_to_service_only": "unknown",
+          "managed_identity_or_workload_identity": "unknown"
+        },
+        "evidence": []
+      },
+      "mfa": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "methods_allowed": [],
+          "phishing_resistant": "unknown",
+          "number_matching": "unknown",
+          "step_up_for_risky_actions": "unknown",
+          "break_glass_accounts": "unknown"
+        },
+        "evidence": []
+      },
+      "attribute_constraints": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "ip_restriction": "unknown",
+          "geo_restriction": "unknown",
+          "device_compliance_required": "unknown",
+          "time_window_restriction": "unknown",
+          "risk_based_sign_in": "unknown",
+          "rate_limiting": "unknown",
+          "reputation_scoring": "unknown"
+        },
+        "evidence": []
+      }
+    },
+
+    "identity_hygiene": {
+      "legacy_auth_disabled": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "basic_auth_blocked": "unknown",
+          "legacy_mail_protocols_blocked": "unknown",
+          "service_accounts_exemptions_reviewed": "unknown"
+        },
+        "evidence": []
+      },
+      "password_spray_resistance": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "lockout_policy": "unknown",
+          "smart_lockout_or_risk_lockout": "unknown",
+          "password_banned_list": "unknown"
+        },
+        "evidence": []
+      },
+      "guest_and_external_access": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "guest_access_limited": "unknown",
+          "external_sharing_restricted": "unknown",
+          "b2b_controls": "unknown",
+          "admin_consent_restricted": "unknown"
+        },
+        "evidence": []
+      },
+      "service_account_governance": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "inventory_exists": "unknown",
+          "owners_assigned": "unknown",
+          "secrets_rotation_enforced": "unknown",
+          "interactive_login_blocked": "unknown"
+        },
+        "evidence": []
+      }
+    },
+
+    "authorization_controls": {
+      "rbac_least_privilege": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "role_based_model": "unknown",
+          "least_privilege_principle_applied": "unknown",
+          "periodic_access_reviews": "unknown"
+        },
+        "evidence": []
+      },
+      "persistent_admin_roles": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "persistent_high_priv_roles_exist": "unknown",
+          "admin_roles_scoped": "unknown",
+          "separation_of_duties": "unknown"
+        },
+        "evidence": []
+      },
+      "privilege_escalation_controls": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "separate_admin_creds": "unknown",
+          "just_in_time_access": "unknown",
+          "just_enough_admin": "unknown",
+          "admin_actions_via_ci_cd": "unknown",
+          "approval_workflows": "unknown",
+          "session_recording_for_admin": "unknown"
+        },
+        "evidence": []
+      }
+    },
+
+    "network_and_access_surface_constraints": {
+      "logical_access_constraint": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "network_firewalling": "unknown",
+          "host_firewalling": "unknown",
+          "private_endpoints_or_internal_only": "unknown",
+          "identity_aware_proxy": "unknown",
+          "vpn_required": "unknown"
+        },
+        "evidence": []
+      },
+      "network_segmentation": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "server_workstation_isolation": "unknown",
+          "east_west_filtering": "unknown",
+          "tiered_admin_model": "unknown",
+          "management_plane_isolated": "unknown",
+          "ot_it_segmentation": "unknown"
+        },
+        "evidence": []
+      },
+      "edge_protection": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "waf_enabled": "unknown",
+          "api_gateway_present": "unknown",
+          "api_schema_validation": "unknown",
+          "bot_mitigation": "unknown",
+          "rate_limiting_at_edge": "unknown",
+          "ddos_protection": "unknown"
+        },
+        "evidence": []
+      }
+    },
+
+    "endpoint_and_execution_controls": {
+      "process_access_constraint": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "edr_present": "unknown",
+          "application_allow_listing": "unknown",
+          "macro_blocking": "unknown",
+          "script_restrictions": "unknown",
+          "child_process_restrictions": "unknown",
+          "admin_tooling_restrictions": "unknown"
+        },
+        "evidence": []
+      },
+      "endpoint_baseline_hardening": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "disk_encryption": "unknown",
+          "secure_boot": "unknown",
+          "local_firewall_enabled": "unknown",
+          "local_admin_restricted": "unknown",
+          "usb_device_control": "unknown"
+        },
+        "evidence": []
+      }
+    },
+
+    "data_access_controls": {
+      "data_access_constraint": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "file_permissions": "unknown",
+          "row_level_security": "unknown",
+          "column_level_security": "unknown",
+          "dlp_marking": "unknown",
+          "egress_controls_for_sensitive_data": "unknown"
+        },
+        "evidence": []
+      },
+      "secrets_management": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "central_vault": "unknown",
+          "secret_zero_handling": "unknown",
+          "rotation_enforced": "unknown",
+          "access_policies_defined": "unknown"
+        },
+        "evidence": []
+      }
+    },
+
+    "runtime_and_platform_constraints": {
+      "specialized_runtime": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "containerized": "unknown",
+          "function_as_a_service": "unknown",
+          "appliance_model": "unknown",
+          "readonly_filesystem": "unknown",
+          "minimal_os": "unknown"
+        },
+        "evidence": []
+      },
+      "platform_guardrails": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "infrastructure_as_code": "unknown",
+          "policy_as_code": "unknown",
+          "change_control_enforced": "unknown",
+          "golden_images": "unknown"
+        },
+        "evidence": []
+      }
+    },
+
+    "vulnerability_and_change_management": {
+      "vulnerability_management": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "scanner_present": "unknown",
+          "scan_frequency_days": null,
+          "external_surface_scanning": "unknown",
+          "critical_remediation_sla_days": null,
+          "exception_process": "unknown"
+        },
+        "evidence": []
+      },
+      "patch_management": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "patching_process_defined": "unknown",
+          "patch_sla_days": null,
+          "emergency_patch_process": "unknown"
+        },
+        "evidence": []
+      }
+    },
+
+    "email_security_controls": {
+      "secure_email_gateway": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "inbound_filtering": "unknown",
+          "attachment_sandboxing": "unknown",
+          "url_rewriting_or_detonation": "unknown",
+          "impersonation_protection": "unknown",
+          "malware_scanning": "unknown"
+        },
+        "evidence": []
+      },
+      "email_domain_controls": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "spf_configured": "unknown",
+          "dkim_configured": "unknown",
+          "dmarc_enforced": "unknown"
+        },
+        "evidence": []
+      }
+    },
+
+    "cloud_and_saas_guardrails": {
+      "cloud_posture_controls": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "cspm_enabled": "unknown",
+          "policy_enforcement": "unknown",
+          "public_access_blocking": "unknown",
+          "key_management_standards": "unknown"
+        },
+        "evidence": []
+      },
+      "saas_controls": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "casb_enabled": "unknown",
+          "saas_dlp_enabled": "unknown",
+          "external_sharing_controls": "unknown",
+          "oauth_app_controls": "unknown"
+        },
+        "evidence": []
+      }
+    },
+
+    "backup_and_resilience_constraints": {
+      "backup_resilience": {
+        "state": "unknown",
+        "scope": "unknown",
+        "implementation": {
+          "immutable_backups": "unknown",
+          "offline_backups": "unknown",
+          "restore_tests_per_year": null,
+          "backup_admin_isolated": "unknown"
+        },
+        "evidence": []
+      }
+    }
+  }
+}
