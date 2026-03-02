@@ -38,19 +38,20 @@ def render_ascii_attack_path(result_data: Dict[str, Any], compact: bool = False)
     
     lines = []
     
-    # Header
+    # Header - match box width (90 + 4 for borders = 94)
+    header_width = 94
     lines.append("")
-    lines.append("╔" + "═" * 70 + "╗")
-    lines.append("║" + f" ATTACK PATH VISUALIZATION - {attack_type.upper()} ".center(70) + "║")
-    lines.append("╚" + "═" * 70 + "╝")
+    lines.append("╔" + "═" * header_width + "╗")
+    lines.append("║" + f" ATTACK PATH VISUALIZATION - {attack_type.upper()} ".center(header_width) + "║")
+    lines.append("╚" + "═" * header_width + "╝")
     lines.append("")
     
     if narrative:
-        # Wrap narrative to 68 chars
-        wrapped = _wrap_text(narrative, 68)
-        for line in wrapped[:3]:  # Max 3 lines
+        # Wrap narrative to match box width
+        wrapped = _wrap_text(narrative, 90)
+        for line in wrapped[:4]:  # Max 4 lines
             lines.append(f"  {line}")
-        if len(wrapped) > 3:
+        if len(wrapped) > 4:
             lines.append("  ...")
         lines.append("")
     
@@ -70,9 +71,9 @@ def render_ascii_attack_path(result_data: Dict[str, Any], compact: bool = False)
         for stage in missing_stages:
             lines.append(f"      ╳ {stage.get('name', 'Unknown')}")
     
-    # Legend
+    # Legend - match box width
     lines.append("")
-    lines.append("  ─────────────────────────────────────────────────────────────────")
+    lines.append("  " + "─" * 90)
     lines.append("  Legend: ███ strong | ██░ moderate | █░░ weak | ░░░ nominal")
     lines.append("          [P] preventive | [D] detective | [R] responsive")
     lines.append("")
@@ -108,6 +109,10 @@ def _render_detailed_path(stages: List[Dict]) -> List[str]:
     """Render stages as detailed vertical boxes with controls."""
     lines = []
     
+    # Wider box for better readability
+    box_width = 90
+    content_width = box_width - 6  # Account for "  │" prefix and "│" suffix and padding
+    
     for i, stage in enumerate(stages):
         name = stage.get("name", "Unknown")
         technique = stage.get("technique_claimed", "")
@@ -116,7 +121,6 @@ def _render_detailed_path(stages: List[Dict]) -> List[str]:
         gaps = stage.get("gaps_detected", [])
         
         # Stage box
-        box_width = 66
         lines.append("  ┌" + "─" * box_width + "┐")
         
         # Stage header
@@ -125,19 +129,30 @@ def _render_detailed_path(stages: List[Dict]) -> List[str]:
             header += f" ({mitre_id})"
         lines.append("  │" + header.ljust(box_width) + "│")
         
-        # Technique
+        # Technique - wrap long text
         if technique:
-            tech_line = f"    Technique: {technique[:50]}"
-            lines.append("  │" + tech_line.ljust(box_width) + "│")
+            tech_prefix = "    Technique: "
+            tech_width = box_width - len(tech_prefix)
+            wrapped_tech = _wrap_text(technique, tech_width)
+            for j, tech_line in enumerate(wrapped_tech[:2]):  # Max 2 lines
+                if j == 0:
+                    lines.append("  │" + (tech_prefix + tech_line).ljust(box_width) + "│")
+                else:
+                    lines.append("  │" + ("               " + tech_line).ljust(box_width) + "│")
         
         # Controls
         if controls:
             lines.append("  │" + "    Controls:".ljust(box_width) + "│")
             for ctrl in controls[:4]:  # Max 4 controls shown
-                ctrl_name = ctrl.get("control_name", "Unknown")[:30]
+                ctrl_name = ctrl.get("control_name", "Unknown")
                 ctrl_type = ctrl.get("control_type", "?")[0].upper()  # P/D/R
                 eff = ctrl.get("effectiveness_rating", "unknown")
                 eff_bar = {"strong": "███", "moderate": "██░", "weak": "█░░", "nominal": "░░░"}.get(eff, "???")
+                
+                # Truncate control name to fit, leaving room for type and bar
+                max_ctrl_name = box_width - 20  # "[P] " + " ███" + padding
+                if len(ctrl_name) > max_ctrl_name:
+                    ctrl_name = ctrl_name[:max_ctrl_name-3] + "..."
                 
                 ctrl_line = f"      [{ctrl_type}] {ctrl_name} {eff_bar}"
                 lines.append("  │" + ctrl_line.ljust(box_width) + "│")
@@ -145,12 +160,18 @@ def _render_detailed_path(stages: List[Dict]) -> List[str]:
             if len(controls) > 4:
                 lines.append("  │" + f"      ... +{len(controls)-4} more controls".ljust(box_width) + "│")
         
-        # Gaps
+        # Gaps - wrap long text
         if gaps:
             lines.append("  │" + "    ⚠ Gaps:".ljust(box_width) + "│")
-            for gap in gaps[:2]:
-                gap_line = f"      • {gap[:50]}"
-                lines.append("  │" + gap_line.ljust(box_width) + "│")
+            gap_prefix = "      • "
+            gap_width = box_width - len(gap_prefix)
+            for gap in gaps[:3]:  # Max 3 gaps
+                wrapped_gap = _wrap_text(gap, gap_width)
+                for j, gap_line in enumerate(wrapped_gap[:2]):  # Max 2 lines per gap
+                    if j == 0:
+                        lines.append("  │" + (gap_prefix + gap_line).ljust(box_width) + "│")
+                    else:
+                        lines.append("  │" + ("        " + gap_line).ljust(box_width) + "│")
         
         lines.append("  └" + "─" * box_width + "┘")
         
