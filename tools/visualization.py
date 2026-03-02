@@ -39,7 +39,7 @@ def render_ascii_attack_path(result_data: Dict[str, Any], compact: bool = False)
     lines = []
     
     # Header - match box width (90 + 4 for borders = 94)
-    header_width = 94
+    header_width = 124
     lines.append("")
     lines.append("╔" + "═" * header_width + "╗")
     lines.append("║" + f" ATTACK PATH VISUALIZATION - {attack_type.upper()} ".center(header_width) + "║")
@@ -48,10 +48,10 @@ def render_ascii_attack_path(result_data: Dict[str, Any], compact: bool = False)
     
     if narrative:
         # Wrap narrative to match box width
-        wrapped = _wrap_text(narrative, 90)
-        for line in wrapped[:4]:  # Max 4 lines
+        wrapped = _wrap_text(narrative, 120)
+        for line in wrapped[:6]:  # Max 4 lines
             lines.append(f"  {line}")
-        if len(wrapped) > 4:
+        if len(wrapped) > 6:
             lines.append("  ...")
         lines.append("")
     
@@ -73,7 +73,7 @@ def render_ascii_attack_path(result_data: Dict[str, Any], compact: bool = False)
     
     # Legend - match box width
     lines.append("")
-    lines.append("  " + "─" * 90)
+    lines.append("  " + "─" * 120)
     lines.append("  Legend: ███ strong | ██░ moderate | █░░ weak | ░░░ nominal")
     lines.append("          [P] preventive | [D] detective | [R] responsive")
     lines.append("")
@@ -109,8 +109,8 @@ def _render_detailed_path(stages: List[Dict]) -> List[str]:
     """Render stages as detailed vertical boxes with controls."""
     lines = []
     
-    # Wider box for better readability
-    box_width = 90
+    # Wider box for better readability (120 chars to match header)
+    box_width = 120
     content_width = box_width - 6  # Account for "  │" prefix and "│" suffix and padding
     
     for i, stage in enumerate(stages):
