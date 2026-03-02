@@ -27,6 +27,14 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 from functools import lru_cache
 
+# Import visualization module for storing results
+try:
+    from tools.visualization import set_last_risk_assessment_result
+    VISUALIZATION_AVAILABLE = True
+except ImportError:
+    VISUALIZATION_AVAILABLE = False
+    def set_last_risk_assessment_result(x): pass
+
 # PDF reading support
 try:
     import fitz  # pymupdf
@@ -782,6 +790,9 @@ def register_risk_assessment_tools(mcp, storage_client, gemini_client, get_bucke
             # Add source info to metadata
             result.metadata["source_file"] = source_ref
             result.metadata["analysis_timestamp"] = datetime.now().isoformat()
+            
+            # Store result for visualization
+            set_last_risk_assessment_result(result.to_dict())
             
             # Return in requested format
             if output_format.lower() == "json":

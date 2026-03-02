@@ -729,6 +729,26 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
         description = " ".join(parts[2:])
         await call_soc_tool("create_threat_scenario", {"name": name, "description": description})
         return True
+
+    # =========================================================================
+    # VISUALIZATION COMMANDS
+    # =========================================================================
+    
+    elif cmd_name == "visualize" or cmd_name == "viz":
+        # usage: visualize [ascii|mermaid|both]
+        output_format = parts[1] if len(parts) > 1 else "ascii"
+        if output_format not in ("ascii", "mermaid", "both"):
+            print("Usage: visualize [ascii|mermaid|both]")
+            print("  Visualize the last risk assessment attack path")
+            print("  Run 'ra <pdf>' first to analyze a risk assessment")
+            return True
+        await call_soc_tool("visualize_attack_path", {"output_format": output_format})
+        return True
+
+    elif cmd_name == "viz_compact":
+        # usage: viz_compact - compact single-line attack path view
+        await call_soc_tool("visualize_attack_path_compact", {})
+        return True
     
     return False  # Not a direct command
 
@@ -781,6 +801,8 @@ def print_help():
     print(f"\n{Colors.YELLOW}📊 Risk Assessment:{Colors.RESET}")
     print(f"   {Colors.WHITE}ra{Colors.RESET} <pdf> [type] [--gcs] [--json]  Analyze risk assessment PDF")
     print(f"   {Colors.WHITE}attack_types{Colors.RESET}                       List attack types & stage requirements")
+    print(f"   {Colors.WHITE}visualize{Colors.RESET} [ascii|mermaid|both]     Visualize last attack path")
+    print(f"   {Colors.WHITE}viz_compact{Colors.RESET}                        Compact single-line attack path")
     print(f"   {Colors.DIM}   → Validates attack paths against MITRE ICS stages{Colors.RESET}")
     print(f"   {Colors.DIM}   → Flags missing stages relevant to attack type{Colors.RESET}")
     print(f"   {Colors.DIM}   → Assesses control effectiveness with evidence basis{Colors.RESET}")

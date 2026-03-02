@@ -12,6 +12,7 @@ Modules:
 - templates: Template generation (generate_pattern_templates, get_parsing_patterns)
 - threat_modeling: Threat model and tabletop analysis (analyze_threat_model, create_threat_scenario, etc.)
 - risk_assessment: Risk assessment PDF analysis (analyze_risk_assessment_pdf, list_attack_types)
+- visualization: Attack path visualization (visualize_attack_path, visualize_attack_path_compact)
 """
 
 from tools.navigation import register_navigation_tools
@@ -21,6 +22,7 @@ from tools.investigation import register_investigation_tools
 from tools.templates import register_template_tools
 from tools.threat_modeling import register_threat_modeling_tools
 from tools.risk_assessment import register_risk_assessment_tools
+from tools.visualization import register_visualization_tools
 
 # Module-level reference for gemini_client (set by register_all_tools)
 _gemini_client = None
@@ -37,3 +39,4 @@ def register_all_tools(mcp, storage_client, gemini_client, get_bucket_func):
     register_template_tools(mcp, storage_client, gemini_client, get_bucket_func)
     register_threat_modeling_tools(mcp, storage_client, gemini_client, get_bucket_func)
     register_risk_assessment_tools(mcp, storage_client, gemini_client, get_bucket_func)
+    register_visualization_tools(mcp)
