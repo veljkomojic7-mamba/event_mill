@@ -306,6 +306,239 @@ Provide a concise summary relevant to SOC analysis.
         except Exception as e:
             return f"Unable to get file context: {str(e)}"
 
+# =============================================================================
+# TAB COMPLETION ENGINE
+# =============================================================================
+
+# Command definitions: {command: {flags: {flag: [values]}}}
+COMMAND_COMPLETIONS: Dict[str, Dict] = {
+    "buckets": {},
+    "ls": {},
+    "read": {},
+    "meta": {},
+    "search": {},
+    "analyze": {
+        "__positional_1": [
+            "IP", "IPV4", "IPV6", "MAC", "EMAIL", "UUID",
+            "HTTPSTATUS", "HTTPMETHOD", "LOGLEVEL", "USER",
+            "PORT", "PATH", "TIMESTAMP",
+        ],
+        "--full": [],
+    },
+    "analyze_rex": {"--full": []},
+    "scan": {"--full": []},
+    "investigate": {"--full": []},
+    "templates": {"--grok": []},
+    "patterns": {},
+    "patterns_custom": {},
+    "threat_intel": {"__positional_1": ["list", "clear"]},
+    "load_pdf": {"--gcs": []},
+    "threat_model": {
+        "--gcs": [],
+        "--text": [],
+        "__positional_2": [
+            "threat_model", "security_assessment",
+            "red_team_report",
+        ],
+    },
+    "tabletop": {},
+    "ra": {
+        "--gcs": [],
+        "--json": [],
+        "__positional_2": [
+            "ddos", "ransomware", "data_theft", "apt",
+            "insider_threat", "web_attack", "generic",
+        ],
+    },
+    "risk_assessment": {
+        "--gcs": [],
+        "--json": [],
+        "__positional_2": [
+            "ddos", "ransomware", "data_theft", "apt",
+            "insider_threat", "web_attack", "generic",
+        ],
+    },
+    "attack_types": {},
+    "scenarios": {
+        "__positional_1": ["list", "gaps", "export"],
+    },
+    "create_scenario": {},
+    "visualize": {
+        "__positional_1": ["ascii", "mermaid", "both"],
+    },
+    "viz": {
+        "__positional_1": ["ascii", "mermaid", "both"],
+    },
+    "viz_compact": {},
+    "load_pcap": {"--gcs": []},
+    "pcap_summary": {},
+    "pcap_convos": {
+        "--by": ["bytes", "packets", "duration"],
+        "--top": [],
+    },
+    "pcap_dns": {},
+    "pcap_http": {},
+    "pcap_timeline": {},
+    "pcap_ioc": {},
+    "hunt_talkers": {
+        "--by": ["bytes", "connections", "conns", "packets"],
+        "--top": [],
+    },
+    "hunt_ports": {
+        "--unusual": [],
+        "--top": [],
+    },
+    "hunt_beacons": {
+        "--min": [],
+        "--jitter": [],
+    },
+    "hunt_dns": {},
+    "hunt_tls": {},
+    "hunt_lateral": {},
+    "hunt_exfil": {
+        "--ratio": [],
+        "--min-bytes": [],
+    },
+    "help": {},
+    "exit": {},
+    "quit": {},
+}
+
+# All command names for first-word completion
+_ALL_COMMANDS = sorted(COMMAND_COMPLETIONS.keys())
+
+
+class EventMillCompleter:
+    """Context-aware tab completer for Event Mill CLI."""
+
+    def __init__(self):
+        self._matches: List[str] = []
+
+    def _get_flag_values(
+        self, cmd: str, flag: str
+    ) -> List[str]:
+        """Get valid values for a flag of a command."""
+        cmd_def = COMMAND_COMPLETIONS.get(cmd, {})
+        return cmd_def.get(flag, [])
+
+    def _get_positional_values(
+        self, cmd: str, pos_index: int
+    ) -> List[str]:
+        """Get valid values for positional arg N."""
+        cmd_def = COMMAND_COMPLETIONS.get(cmd, {})
+        key = f"__positional_{pos_index}"
+        return cmd_def.get(key, [])
+
+    def _get_flags_for_cmd(self, cmd: str) -> List[str]:
+        """Get all flags (--xxx) for a command."""
+        cmd_def = COMMAND_COMPLETIONS.get(cmd, {})
+        return [
+            k for k in cmd_def
+            if k.startswith("--")
+        ]
+
+    def complete(self, text: str, state: int) -> str:
+        """Readline completer callback."""
+        if state == 0:
+            line = readline.get_line_buffer()
+            self._matches = self._compute_matches(
+                line, text
+            )
+        if state < len(self._matches):
+            return self._matches[state]
+        return None
+
+    def _compute_matches(
+        self, line: str, text: str
+    ) -> List[str]:
+        """Compute completion matches for current input."""
+        parts = line.split()
+        # Cursor at start or completing first word
+        if not parts or (
+            len(parts) == 1 and not line.endswith(" ")
+        ):
+            return [
+                c + " " for c in _ALL_COMMANDS
+                if c.startswith(text)
+            ]
+
+        cmd = parts[0].lower()
+        if cmd not in COMMAND_COMPLETIONS:
+            return []
+
+        # Previous token (what came before cursor)
+        prev = parts[-1] if line.endswith(" ") else (
+            parts[-2] if len(parts) >= 2 else ""
+        )
+        completing_new_token = line.endswith(" ")
+
+        # If previous token is a flag that takes values,
+        # complete the value
+        if completing_new_token and prev.startswith("--"):
+            values = self._get_flag_values(cmd, prev)
+            if values:
+                return [v + " " for v in values]
+
+        # If typing a value after a flag (e.g. --by by<tab>)
+        if (
+            not completing_new_token
+            and len(parts) >= 3
+            and parts[-2].startswith("--")
+        ):
+            values = self._get_flag_values(
+                cmd, parts[-2]
+            )
+            if values:
+                return [
+                    v + " " for v in values
+                    if v.startswith(text)
+                ]
+
+        # Complete flags
+        if text.startswith("-"):
+            used = set(parts)
+            return [
+                f + " " for f in self._get_flags_for_cmd(cmd)
+                if f.startswith(text) and f not in used
+            ]
+
+        # Positional arg completion
+        if completing_new_token:
+            # Count non-flag positional args (excluding cmd)
+            pos_args = [
+                p for p in parts[1:]
+                if not p.startswith("-")
+            ]
+            pos_index = len(pos_args) + 1
+        else:
+            pos_args = [
+                p for p in parts[1:-1]
+                if not p.startswith("-")
+            ]
+            pos_index = len(pos_args) + 1
+
+        values = self._get_positional_values(
+            cmd, pos_index
+        )
+        if values:
+            return [
+                v + " " for v in values
+                if v.startswith(text)
+            ]
+
+        # Suggest available flags if nothing else matches
+        if completing_new_token:
+            used = set(parts)
+            flags = [
+                f + " " for f in self._get_flags_for_cmd(cmd)
+                if f not in used
+            ]
+            if flags:
+                return flags
+
+        return []
+
+
 def setup_readline():
     """Configure readline for command history and editing."""
     if readline is None:
@@ -326,7 +559,10 @@ def setup_readline():
     # Save history on exit
     atexit.register(readline.write_history_file, history_file)
     
-    # Enable tab completion (basic)
+    # Register tab completer
+    completer = EventMillCompleter()
+    readline.set_completer(completer.complete)
+    readline.set_completer_delims(" \t")
     readline.parse_and_bind("tab: complete")
 
 
