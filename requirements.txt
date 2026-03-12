@@ -6,4 +6,5 @@ starlette
 google-genai
 pymupdf
 scapy>=2.6.0
+cryptography
 pyreadline3; sys_platform == 'win32'

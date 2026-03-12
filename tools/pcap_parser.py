@@ -24,23 +24,41 @@ from datetime import datetime
 try:
     # Suppress scapy warnings on import
     logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
+    # Disable IPv6 route reading BEFORE importing layers — avoids
+    # KeyError: 'scope' in containers with limited network namespaces
+    from scapy.config import conf as _scapy_conf
+    _scapy_conf.ipv6_enabled = False
     from scapy.utils import PcapReader
     from scapy.layers.inet import IP, TCP, UDP, ICMP
     from scapy.layers.dns import DNS, DNSQR, DNSRR
     from scapy.layers.http import HTTPRequest, HTTPResponse
-    from scapy.layers.tls.record import TLS
-    from scapy.layers.tls.handshake import (
-        TLSClientHello,
-        TLSServerHello,
-    )
-    from scapy.layers.tls.extensions import ServerName
     from scapy.packet import Raw
     SCAPY_AVAILABLE = True
-except ImportError:
+    # TLS layer requires cryptography package; import separately
+    try:
+        from scapy.layers.tls.record import TLS
+        from scapy.layers.tls.handshake import (
+            TLSClientHello,
+            TLSServerHello,
+        )
+        from scapy.layers.tls.extensions import ServerName
+        SCAPY_TLS_AVAILABLE = True
+    except Exception:
+        TLS = None
+        TLSClientHello = None
+        TLSServerHello = None
+        ServerName = None
+        SCAPY_TLS_AVAILABLE = False
+        logging.warning(
+            "scapy TLS layers unavailable (install cryptography). "
+            "TLS handshake parsing disabled."
+        )
+except Exception as e:
     SCAPY_AVAILABLE = False
+    SCAPY_TLS_AVAILABLE = False
     logging.warning(
-        "scapy not installed. PCAP parsing disabled. "
-        "Install with: pip install scapy"
+        f"scapy not available: {e}. PCAP parsing disabled. "
+        "Install with: pip install 'scapy[basic]' cryptography"
     )
 
 # 50 MB file size limit
@@ -282,7 +300,7 @@ def parse_pcap_file(file_path: str) -> PcapSession:
                 })
 
             # TLS Client Hello extraction
-            if pkt.haslayer(TLS):
+            if SCAPY_TLS_AVAILABLE and pkt.haslayer(TLS):
                 try:
                     if pkt.haslayer(TLSClientHello):
                         ch = pkt[TLSClientHello]
