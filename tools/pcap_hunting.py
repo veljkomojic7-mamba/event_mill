@@ -757,14 +757,19 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
                     )
             out.append("")
 
-        # 2. Port scanning: one source, many destinations same port
+        # 2. Port scanning: one internal source, many internal destinations
+        #    (east-west only — skip north-south to external)
         src_dst_per_port: Dict[
             tuple, set
         ] = defaultdict(set)
         for (src, dst, dport, proto), stats in (
             s.conversations.items()
         ):
-            if is_internal(src) and dport > 0:
+            if (
+                is_internal(src)
+                and is_internal(dst)
+                and dport > 0
+            ):
                 src_dst_per_port[(src, dport)].add(dst)
 
         scanners = []
