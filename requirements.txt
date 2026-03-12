@@ -5,4 +5,5 @@ uvicorn
 starlette
 google-genai
 pymupdf
+scapy>=2.6.0
 pyreadline3; sys_platform == 'win32'

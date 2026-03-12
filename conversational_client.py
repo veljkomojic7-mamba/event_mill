@@ -749,7 +749,174 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
         # usage: viz_compact - compact single-line attack path view
         await call_soc_tool("visualize_attack_path_compact", {})
         return True
-    
+
+    # =========================================================================
+    # PCAP HUNTING COMMANDS
+    # =========================================================================
+
+    elif cmd_name == "load_pcap":
+        # usage: load_pcap <file_path> [--gcs]
+        if len(parts) < 2:
+            print("Usage: load_pcap <file_path> [--gcs]")
+            print("  Load a .pcap/.pcapng file for threat hunting (max 50 MB)")
+            print("")
+            print("  Examples:")
+            print("    load_pcap /path/to/capture.pcap")
+            print("    load_pcap captures/suspicious.pcap --gcs")
+            return True
+        file_path = parts[1]
+        from_gcs = "--gcs" in parts
+        await call_soc_tool("load_pcap", {
+            "file_path": file_path,
+            "from_gcs": from_gcs
+        })
+        return True
+
+    elif cmd_name == "pcap_summary":
+        await call_soc_tool("pcap_summary", {})
+        return True
+
+    elif cmd_name == "pcap_convos":
+        # usage: pcap_convos [--by bytes|packets|duration] [--top N]
+        sort_by = "bytes"
+        top_n = 20
+        for idx, p in enumerate(parts):
+            if p == "--by" and idx + 1 < len(parts):
+                sort_by = parts[idx + 1]
+            if p == "--top" and idx + 1 < len(parts):
+                try:
+                    top_n = int(parts[idx + 1])
+                except ValueError:
+                    pass
+        await call_soc_tool("pcap_conversations", {
+            "top_n": top_n, "sort_by": sort_by
+        })
+        return True
+
+    elif cmd_name == "pcap_dns":
+        top_n = 30
+        if len(parts) > 1:
+            try:
+                top_n = int(parts[1])
+            except ValueError:
+                pass
+        await call_soc_tool("pcap_dns", {"top_n": top_n})
+        return True
+
+    elif cmd_name == "pcap_http":
+        top_n = 30
+        if len(parts) > 1:
+            try:
+                top_n = int(parts[1])
+            except ValueError:
+                pass
+        await call_soc_tool("pcap_http", {"top_n": top_n})
+        return True
+
+    elif cmd_name == "pcap_timeline":
+        # usage: pcap_timeline [ip_address]
+        ip_addr = parts[1] if len(parts) > 1 else ""
+        await call_soc_tool("pcap_timeline", {
+            "ip_address": ip_addr
+        })
+        return True
+
+    elif cmd_name == "pcap_ioc":
+        # usage: pcap_ioc <indicator>
+        if len(parts) < 2:
+            print("Usage: pcap_ioc <ip|domain|port>")
+            return True
+        await call_soc_tool("pcap_ioc", {
+            "indicator": parts[1]
+        })
+        return True
+
+    elif cmd_name == "hunt_talkers":
+        # usage: hunt_talkers [--by bytes|connections|packets] [--top N]
+        by = "bytes"
+        top_n = 20
+        for idx, p in enumerate(parts):
+            if p == "--by" and idx + 1 < len(parts):
+                by = parts[idx + 1]
+            if p == "--top" and idx + 1 < len(parts):
+                try:
+                    top_n = int(parts[idx + 1])
+                except ValueError:
+                    pass
+        await call_soc_tool("hunt_talkers", {
+            "top_n": top_n, "by": by
+        })
+        return True
+
+    elif cmd_name == "hunt_ports":
+        # usage: hunt_ports [--unusual]
+        unusual_only = "--unusual" in parts
+        top_n = 30
+        for idx, p in enumerate(parts):
+            if p == "--top" and idx + 1 < len(parts):
+                try:
+                    top_n = int(parts[idx + 1])
+                except ValueError:
+                    pass
+        await call_soc_tool("hunt_ports", {
+            "top_n": top_n, "unusual_only": unusual_only
+        })
+        return True
+
+    elif cmd_name == "hunt_beacons":
+        # usage: hunt_beacons [--min N] [--jitter N]
+        min_conns = 10
+        jitter = 15.0
+        for idx, p in enumerate(parts):
+            if p == "--min" and idx + 1 < len(parts):
+                try:
+                    min_conns = int(parts[idx + 1])
+                except ValueError:
+                    pass
+            if p == "--jitter" and idx + 1 < len(parts):
+                try:
+                    jitter = float(parts[idx + 1])
+                except ValueError:
+                    pass
+        await call_soc_tool("hunt_beacons", {
+            "min_connections": min_conns,
+            "max_jitter_pct": jitter
+        })
+        return True
+
+    elif cmd_name == "hunt_dns":
+        await call_soc_tool("hunt_dns", {})
+        return True
+
+    elif cmd_name == "hunt_tls":
+        await call_soc_tool("hunt_tls", {})
+        return True
+
+    elif cmd_name == "hunt_lateral":
+        await call_soc_tool("hunt_lateral", {})
+        return True
+
+    elif cmd_name == "hunt_exfil":
+        # usage: hunt_exfil [--ratio N] [--min-bytes N]
+        min_ratio = 10.0
+        min_bytes = 1048576
+        for idx, p in enumerate(parts):
+            if p == "--ratio" and idx + 1 < len(parts):
+                try:
+                    min_ratio = float(parts[idx + 1])
+                except ValueError:
+                    pass
+            if p == "--min-bytes" and idx + 1 < len(parts):
+                try:
+                    min_bytes = int(parts[idx + 1])
+                except ValueError:
+                    pass
+        await call_soc_tool("hunt_exfil", {
+            "min_ratio": min_ratio,
+            "min_bytes_out": min_bytes
+        })
+        return True
+
     return False  # Not a direct command
 
 def print_help():
@@ -808,6 +975,24 @@ def print_help():
     print(f"   {Colors.DIM}   → Assesses control effectiveness with evidence basis{Colors.RESET}")
     print(f"   {Colors.DIM}   → Types: ddos, ransomware, data_theft, apt, insider_threat, web_attack{Colors.RESET}")
     
+    print(f"\n{Colors.RED}🔬 PCAP Threat Hunting:{Colors.RESET}")
+    print(f"   {Colors.WHITE}load_pcap{Colors.RESET} <file> [--gcs]           Load PCAP for analysis (max 50 MB)")
+    print(f"   {Colors.WHITE}pcap_summary{Colors.RESET}                       Show loaded PCAP stats")
+    print(f"   {Colors.WHITE}pcap_convos{Colors.RESET} [--by bytes|packets]   List network conversations")
+    print(f"   {Colors.WHITE}pcap_dns{Colors.RESET} [N]                       Extract DNS activity")
+    print(f"   {Colors.WHITE}pcap_http{Colors.RESET} [N]                      Extract HTTP requests")
+    print(f"   {Colors.WHITE}pcap_timeline{Colors.RESET} [ip]                 Chronological activity")
+    print(f"   {Colors.WHITE}pcap_ioc{Colors.RESET} <ip|domain|port>          Search for IOC in PCAP")
+    print(f"   {Colors.WHITE}hunt_talkers{Colors.RESET} [--by bytes|conns]    Top talkers by volume/connections")
+    print(f"   {Colors.WHITE}hunt_ports{Colors.RESET} [--unusual]             Port analysis (ICS-aware)")
+    print(f"   {Colors.WHITE}hunt_beacons{Colors.RESET}                       Detect C2 beaconing patterns")
+    print(f"   {Colors.WHITE}hunt_dns{Colors.RESET}                           DNS anomaly analysis (DGA, tunneling)")
+    print(f"   {Colors.WHITE}hunt_tls{Colors.RESET}                           TLS/SNI analysis")
+    print(f"   {Colors.WHITE}hunt_lateral{Colors.RESET}                       Lateral movement detection")
+    print(f"   {Colors.WHITE}hunt_exfil{Colors.RESET}                         Data exfiltration indicators")
+    print(f"   {Colors.DIM}   → ICS-aware: Modbus, DNP3, EtherNet/IP, OPC-UA, BACnet, S7comm{Colors.RESET}")
+    print(f"   {Colors.DIM}   → Detects suspicious ports, beaconing, DGA, cross-zone ICS traffic{Colors.RESET}")
+    
     print(f"\n{Colors.CYAN}🤖 Natural Language (AI-Powered):{Colors.RESET}")
     print(f"   {Colors.DIM}'Show me the top talkers from the web server logs'{Colors.RESET}")
     print(f"   {Colors.DIM}'Investigate suspicious activity from IP 192.168.1.100'{Colors.RESET}")
@@ -822,6 +1007,11 @@ def print_help():
     print(f"   {Colors.CYAN}⚙ mill>{Colors.RESET} templates access.log my-log-bucket --grok")
     print(f"   {Colors.CYAN}⚙ mill>{Colors.RESET} load_pdf /path/to/mandiant-report.pdf")
     print(f"   {Colors.CYAN}⚙ mill>{Colors.RESET} scenarios gaps TS-0001")
+    print(f"   {Colors.CYAN}⚙ mill>{Colors.RESET} load_pcap captures/traffic.pcap --gcs")
+    print(f"   {Colors.CYAN}⚙ mill>{Colors.RESET} hunt_talkers --by connections")
+    print(f"   {Colors.CYAN}⚙ mill>{Colors.RESET} hunt_ports --unusual")
+    print(f"   {Colors.CYAN}⚙ mill>{Colors.RESET} hunt_beacons")
+    print(f"   {Colors.CYAN}⚙ mill>{Colors.RESET} pcap_ioc 192.168.1.50")
     print(f"   {Colors.CYAN}⚙ mill>{Colors.RESET} show me top talkers from access.log")
     
     print(f"\n{Colors.DIM}Type 'exit' to quit | Logs are read-only (exported data){Colors.RESET}")
