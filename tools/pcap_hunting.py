@@ -167,7 +167,7 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
                 ),
             })
 
-        if by == "connections":
+        if by in ("connections", "conns"):
             talkers.sort(
                 key=lambda t: t["connections"], reverse=True
             )
