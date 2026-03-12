@@ -24,10 +24,22 @@ from datetime import datetime
 try:
     # Suppress scapy warnings on import
     logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
-    # Disable IPv6 route reading BEFORE importing layers — avoids
-    # KeyError: 'scope' in containers with limited network namespaces
-    from scapy.config import conf as _scapy_conf
-    _scapy_conf.ipv6_enabled = False
+
+    # Monkey-patch scapy to handle missing IPv6 'scope' key in
+    # containers with limited network namespaces (Cloud Run, Docker).
+    # scapy.layers.inet unconditionally imports inet6 → route6, which
+    # calls read_routes6() at module level and crashes with KeyError.
+    # Patch BEFORE any layer imports trigger the route6 init chain.
+    import scapy.arch
+    _orig_read_routes6 = getattr(scapy.arch, "read_routes6", None)
+    if _orig_read_routes6:
+        def _safe_read_routes6():
+            try:
+                return _orig_read_routes6()
+            except KeyError:
+                return []
+        scapy.arch.read_routes6 = _safe_read_routes6
+
     from scapy.utils import PcapReader
     from scapy.layers.inet import IP, TCP, UDP, ICMP
     from scapy.layers.dns import DNS, DNSQR, DNSRR
