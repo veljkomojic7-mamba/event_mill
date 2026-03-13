@@ -474,10 +474,19 @@ def register_pcap_parser_tools(mcp, storage_client, gemini_client, get_bucket_fu
             )
             out.append("")
             out.append(
-                "Use hunt_* commands to analyze: "
-                "hunt_talkers, hunt_ports, hunt_dns, "
-                "hunt_beacons, hunt_lateral, hunt_exfil, "
-                "hunt_tls"
+                "📡 PCAP Commands:  pcap_summary, pcap_convos, "
+                "pcap_dns, pcap_http, pcap_timeline, pcap_ioc"
+            )
+            out.append(
+                "🔍 Threat Hunting: hunt_talkers, hunt_ports, "
+                "hunt_dns, hunt_beacons, hunt_lateral, "
+                "hunt_exfil, hunt_tls"
+            )
+            out.append(
+                "🤖 AI Analysis:    ai_pcap_summary, "
+                "ai_hunt_talkers, ai_hunt_beacons, "
+                "ai_hunt_dns, ai_hunt_tls, ai_hunt_lateral, "
+                "ai_hunt_exfil"
             )
 
             return "\n".join(out)
