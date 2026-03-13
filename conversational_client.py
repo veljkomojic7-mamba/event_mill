@@ -399,6 +399,22 @@ COMMAND_COMPLETIONS: Dict[str, Dict] = {
         "--ratio": [],
         "--min-bytes": [],
     },
+    "ai_pcap_summary": {},
+    "ai_hunt_talkers": {
+        "--by": ["bytes", "connections", "conns", "packets"],
+        "--top": [],
+    },
+    "ai_hunt_beacons": {
+        "--min": [],
+        "--jitter": [],
+    },
+    "ai_hunt_dns": {},
+    "ai_hunt_tls": {},
+    "ai_hunt_lateral": {},
+    "ai_hunt_exfil": {
+        "--ratio": [],
+        "--min-bytes": [],
+    },
     "help": {},
     "exit": {},
     "quit": {},
@@ -1153,6 +1169,79 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
         })
         return True
 
+    # ── AI-Enhanced PCAP Commands ──
+    elif cmd_name == "ai_pcap_summary":
+        await call_soc_tool("ai_pcap_summary", {})
+        return True
+
+    elif cmd_name == "ai_hunt_talkers":
+        by = "bytes"
+        top_n = 20
+        for idx, p in enumerate(parts):
+            if p == "--by" and idx + 1 < len(parts):
+                by = parts[idx + 1]
+            if p == "--top" and idx + 1 < len(parts):
+                try:
+                    top_n = int(parts[idx + 1])
+                except ValueError:
+                    pass
+        await call_soc_tool("ai_hunt_talkers", {
+            "top_n": top_n, "by": by
+        })
+        return True
+
+    elif cmd_name == "ai_hunt_beacons":
+        min_conns = 10
+        jitter = 15.0
+        for idx, p in enumerate(parts):
+            if p == "--min" and idx + 1 < len(parts):
+                try:
+                    min_conns = int(parts[idx + 1])
+                except ValueError:
+                    pass
+            if p == "--jitter" and idx + 1 < len(parts):
+                try:
+                    jitter = float(parts[idx + 1])
+                except ValueError:
+                    pass
+        await call_soc_tool("ai_hunt_beacons", {
+            "min_connections": min_conns,
+            "max_jitter_pct": jitter
+        })
+        return True
+
+    elif cmd_name == "ai_hunt_dns":
+        await call_soc_tool("ai_hunt_dns", {})
+        return True
+
+    elif cmd_name == "ai_hunt_tls":
+        await call_soc_tool("ai_hunt_tls", {})
+        return True
+
+    elif cmd_name == "ai_hunt_lateral":
+        await call_soc_tool("ai_hunt_lateral", {})
+        return True
+
+    elif cmd_name == "ai_hunt_exfil":
+        min_ratio = 10.0
+        min_bytes = 1048576
+        for idx, p in enumerate(parts):
+            if p == "--ratio" and idx + 1 < len(parts):
+                try:
+                    min_ratio = float(parts[idx + 1])
+                except ValueError:
+                    pass
+            if p == "--min-bytes" and idx + 1 < len(parts):
+                try:
+                    min_bytes = int(parts[idx + 1])
+                except ValueError:
+                    pass
+        await call_soc_tool("ai_hunt_exfil", {
+            "min_ratio": min_ratio,
+            "min_bytes_out": min_bytes
+        })
+        return True
+
     return False  # Not a direct command
 
 def print_help():
@@ -1228,6 +1317,15 @@ def print_help():
     print(f"   {Colors.WHITE}hunt_exfil{Colors.RESET}                         Data exfiltration indicators")
     print(f"   {Colors.DIM}   → ICS-aware: Modbus, DNP3, EtherNet/IP, OPC-UA, BACnet, S7comm{Colors.RESET}")
     print(f"   {Colors.DIM}   → Detects suspicious ports, beaconing, DGA, cross-zone ICS traffic{Colors.RESET}")
+    
+    print(f"\n{Colors.CYAN}🤖 AI-Enhanced PCAP (Gemini):{Colors.RESET}")
+    print(f"   {Colors.WHITE}ai_pcap_summary{Colors.RESET}                    AI triage of PCAP summary")
+    print(f"   {Colors.WHITE}ai_hunt_talkers{Colors.RESET} [--by bytes|conns]  AI top talkers analysis")
+    print(f"   {Colors.WHITE}ai_hunt_beacons{Colors.RESET}                    AI C2 beaconing detection")
+    print(f"   {Colors.WHITE}ai_hunt_dns{Colors.RESET}                        AI DNS anomaly analysis")
+    print(f"   {Colors.WHITE}ai_hunt_tls{Colors.RESET}                        AI TLS/SNI analysis")
+    print(f"   {Colors.WHITE}ai_hunt_lateral{Colors.RESET}                    AI lateral movement detection")
+    print(f"   {Colors.WHITE}ai_hunt_exfil{Colors.RESET}                      AI exfiltration analysis")
     
     print(f"\n{Colors.CYAN}🤖 Natural Language (AI-Powered):{Colors.RESET}")
     print(f"   {Colors.DIM}'Show me the top talkers from the web server logs'{Colors.RESET}")
