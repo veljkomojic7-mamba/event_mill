@@ -677,6 +677,12 @@ ANALYSIS TASKS:
 4. NEXT STEPS: Recommend 2 specific next steps for the human analyst using available tools (e.g., "query the firewall logs for IP X.X.X.X" or "check EDR telemetry for the host at Y.Y.Y.Y").
 
 Keep your response concise, prioritized, and action-oriented.
+
+Finally, end your response with a TL;DR section:
+
+⚡ TL;DR
+- One-line overall risk verdict (e.g., "HIGH - Potential C2 beaconing detected")
+- Top 1-3 bullet points: the most critical findings the analyst must act on NOW
 """
 
 # Prompt for Deep Dive Threat Hunting and Hypothesis Generation
@@ -697,6 +703,12 @@ ANALYSIS TASKS:
 3. EVIDENCE GATHERING: For each hypothesis, explicitly state what specific secondary logs the human analyst should query next to confirm or deny the theory (e.g., Windows Event Logs, Active Directory authentication logs, specific application logs).
 
 Use internet search if you encounter unfamiliar protocols, suspicious external domains, or attack signatures to provide up-to-date threat intelligence.
+
+Finally, end your response with a TL;DR section:
+
+⚡ TL;DR
+- One-line overall risk verdict (e.g., "MEDIUM - Possible APT staging activity")
+- Top 1-3 bullet points: the most critical hypotheses and what to check next
 """
 
 # Prompt for Final Reporting and IOC Extraction
@@ -724,6 +736,12 @@ INCLUDE IN YOUR RESPONSE:
 4. LIMITATION CAVEATS: A brief note on what cannot be determined from this parsed PCAP data alone.
 
 Format as a professional security analyst shift-handover report.
+
+Finally, end your response with a TL;DR section:
+
+⚡ TL;DR
+- One-line overall risk verdict (e.g., "CRITICAL - Active exfiltration indicators found")
+- Top 1-3 bullet points: the most urgent IOCs and immediate actions
 """
 
 
