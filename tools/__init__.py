@@ -44,5 +44,5 @@ def register_all_tools(mcp, storage_client, gemini_client, get_bucket_func):
     register_threat_modeling_tools(mcp, storage_client, gemini_client, get_bucket_func)
     register_risk_assessment_tools(mcp, storage_client, gemini_client, get_bucket_func)
     register_visualization_tools(mcp)
-    register_pcap_parser_tools(mcp, storage_client, get_bucket_func)
+    register_pcap_parser_tools(mcp, storage_client, gemini_client, get_bucket_func)
     register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_func)

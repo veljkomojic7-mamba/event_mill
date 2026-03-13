@@ -17,6 +17,11 @@ from typing import Dict, List, Optional
 from collections import Counter, defaultdict
 from datetime import datetime
 
+from system_context import (
+    get_pcap_triage_prompt,
+    get_pcap_threat_hunt_prompt,
+    get_pcap_reporting_prompt,
+)
 from tools.pcap_parser import (
     get_pcap_session,
     is_internal,
@@ -111,6 +116,8 @@ def _service_name(port: int) -> str:
 
 def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_func):
     """Register PCAP hunting tools with the MCP server."""
+
+    _gemini_client = gemini_client
 
     @mcp.tool()
     def hunt_talkers(
@@ -1001,3 +1008,156 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
             )
 
         return "\n".join(out)
+
+    # =================================================================
+    # AI-ENHANCED HUNT TOOLS (Gemini LLM analysis)
+    # =================================================================
+
+    def _ai_enhance(static_output: str, prompt_func, file_name: str) -> str:
+        """Run static output through Gemini AI analysis."""
+        if not _gemini_client:
+            return (
+                static_output
+                + "\n\n[Note: Set GEMINI_API_KEY to enable "
+                "AI-powered analysis]"
+            )
+        try:
+            prompt = prompt_func(
+                file_name=file_name,
+                pcap_summary_data=static_output,
+            )
+            response = _gemini_client.models.generate_content(
+                model='gemini-3-flash-preview',
+                contents=prompt,
+            )
+            return (
+                static_output
+                + "\n\n"
+                + "=" * 60 + "\n"
+                + "\U0001f50d AI ANALYSIS\n"
+                + "=" * 60 + "\n"
+                + response.text
+            )
+        except Exception as e:
+            logging.error(f"Gemini API error: {e}")
+            return (
+                static_output
+                + f"\n\n[AI Analysis Failed: {e}]"
+            )
+
+    @mcp.tool()
+    def ai_hunt_talkers(
+        top_n: int = 20,
+        by: str = "bytes",
+    ) -> str:
+        """
+        AI-enhanced top talkers analysis. Runs hunt_talkers
+        then sends output to Gemini for triage, anomaly
+        detection, and prioritized recommendations.
+
+        Args:
+            top_n: Number of talkers to show (default 20)
+            by: Sort by 'bytes', 'connections', or 'packets'
+        """
+        s = get_pcap_session()
+        if not s:
+            return "No PCAP loaded. Use load_pcap first."
+        static = hunt_talkers(top_n=top_n, by=by)
+        return _ai_enhance(
+            static, get_pcap_triage_prompt, s.filename
+        )
+
+    @mcp.tool()
+    def ai_hunt_beacons(
+        min_connections: int = 10,
+        max_jitter_pct: float = 15.0,
+    ) -> str:
+        """
+        AI-enhanced C2 beaconing analysis. Runs hunt_beacons
+        then uses Gemini to assess likelihood of real C2,
+        map to MITRE ATT&CK, and suggest investigation steps.
+
+        Args:
+            min_connections: Minimum connections to analyze
+            max_jitter_pct: Max jitter percentage to flag
+        """
+        s = get_pcap_session()
+        if not s:
+            return "No PCAP loaded. Use load_pcap first."
+        static = hunt_beacons(
+            min_connections=min_connections,
+            max_jitter_pct=max_jitter_pct,
+        )
+        return _ai_enhance(
+            static, get_pcap_threat_hunt_prompt, s.filename
+        )
+
+    @mcp.tool()
+    def ai_hunt_dns() -> str:
+        """
+        AI-enhanced DNS anomaly analysis. Runs hunt_dns then
+        uses Gemini to evaluate DGA likelihood, classify
+        tunneling indicators, and suggest blocklists.
+        """
+        s = get_pcap_session()
+        if not s:
+            return "No PCAP loaded. Use load_pcap first."
+        static = hunt_dns()
+        return _ai_enhance(
+            static, get_pcap_threat_hunt_prompt, s.filename
+        )
+
+    @mcp.tool()
+    def ai_hunt_tls() -> str:
+        """
+        AI-enhanced TLS analysis. Runs hunt_tls then uses
+        Gemini to flag suspicious SNI/certificate patterns
+        and map to known threat infrastructure.
+        """
+        s = get_pcap_session()
+        if not s:
+            return "No PCAP loaded. Use load_pcap first."
+        static = hunt_tls()
+        return _ai_enhance(
+            static, get_pcap_threat_hunt_prompt, s.filename
+        )
+
+    @mcp.tool()
+    def ai_hunt_lateral() -> str:
+        """
+        AI-enhanced lateral movement analysis. Runs
+        hunt_lateral then uses Gemini to map findings
+        to kill chain stages and prioritize response.
+        """
+        s = get_pcap_session()
+        if not s:
+            return "No PCAP loaded. Use load_pcap first."
+        static = hunt_lateral()
+        return _ai_enhance(
+            static, get_pcap_threat_hunt_prompt, s.filename
+        )
+
+    @mcp.tool()
+    def ai_hunt_exfil(
+        min_ratio: float = 10.0,
+        min_bytes_out: int = 1048576,
+    ) -> str:
+        """
+        AI-enhanced exfiltration analysis. Runs hunt_exfil
+        then uses Gemini to assess severity, extract IOCs,
+        and produce a shift-handover report.
+
+        Args:
+            min_ratio: Min out/in byte ratio (default 10x)
+            min_bytes_out: Min outbound bytes (default 1MB)
+        """
+        s = get_pcap_session()
+        if not s:
+            return "No PCAP loaded. Use load_pcap first."
+        static = hunt_exfil(
+            min_ratio=min_ratio,
+            min_bytes_out=min_bytes_out,
+        )
+        return _ai_enhance(
+            static, get_pcap_reporting_prompt, s.filename
+        )

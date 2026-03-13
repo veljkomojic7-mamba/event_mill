@@ -347,10 +347,11 @@ def parse_pcap_file(file_path: str) -> PcapSession:
 # MCP TOOL REGISTRATION
 # =========================================================================
 
-def register_pcap_parser_tools(mcp, storage_client, get_bucket_func):
+def register_pcap_parser_tools(mcp, storage_client, gemini_client, get_bucket_func):
     """Register PCAP parser tools with the MCP server."""
 
     _storage_client = storage_client
+    _gemini_client = gemini_client
     _get_bucket = get_bucket_func
 
     @mcp.tool()
@@ -921,3 +922,53 @@ def register_pcap_parser_tools(mcp, storage_client, get_bucket_func):
             )
 
         return "\n".join(results)
+
+    # =================================================================
+    # AI-ENHANCED PCAP TOOLS (Gemini LLM analysis)
+    # =================================================================
+
+    @mcp.tool()
+    def ai_pcap_summary() -> str:
+        """
+        AI-enhanced PCAP summary. Runs pcap_summary then
+        sends output to Gemini for triage, anomaly detection,
+        and prioritized security recommendations.
+        """
+        s = get_pcap_session()
+        if not s:
+            return "No PCAP loaded. Use load_pcap first."
+
+        static = pcap_summary()
+
+        if not _gemini_client:
+            return (
+                static
+                + "\n\n[Note: Set GEMINI_API_KEY to enable "
+                "AI-powered analysis]"
+            )
+        try:
+            from system_context import get_pcap_triage_prompt
+            prompt = get_pcap_triage_prompt(
+                file_name=s.filename,
+                pcap_summary_data=static,
+            )
+            response = _gemini_client.models.generate_content(
+                model='gemini-3-flash-preview',
+                contents=prompt,
+            )
+            return (
+                static
+                + "\n\n"
+                + "=" * 60 + "\n"
+                + "\U0001f50d AI PCAP TRIAGE\n"
+                + "=" * 60 + "\n"
+                + response.text
+            )
+        except Exception as e:
+            logging.error(
+                f"Gemini API error in ai_pcap_summary: {e}"
+            )
+            return (
+                static
+                + f"\n\n[AI Analysis Failed: {e}]"
+            )
