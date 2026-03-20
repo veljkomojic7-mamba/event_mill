@@ -437,7 +437,6 @@ def register_pcap_parser_tools(mcp, storage_client, gemini_client, get_bucket_fu
                     new_session.filename = os.path.basename(file_path)
                     new_session.file_size = blob.size or 0
                     new_session._temp_path = tmp_path
-                    global _pcap_session
                     _pcap_session = new_session
                 except Exception:
                     os.unlink(tmp_path)
