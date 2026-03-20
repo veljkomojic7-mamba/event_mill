@@ -411,6 +411,25 @@ def register_threat_modeling_tools(mcp, storage_client, gemini_client, get_bucke
         return "\n".join(output)
 
     @mcp.tool()
+    def read_threat_intel_context(document_id: str) -> str:
+        """
+        Reads the full content of a loaded threat intelligence document.
+        """
+        doc = _threat_intel.get_document(document_id)
+        if not doc:
+            return f"Error: Document '{document_id}' not found. Use 'threat_intel list' to see available documents."
+        
+        output = []
+        output.append("=" * 60)
+        output.append(f"📄 DOCUMENT: {doc['name']} ({document_id})")
+        output.append(f"Source: {doc['source']}")
+        output.append("=" * 60)
+        output.append("")
+        output.append(doc['content'])
+        
+        return "\n".join(output)
+
+    @mcp.tool()
     def clear_threat_intel_context(document_id: str = "") -> str:
         """
         Clears loaded threat intelligence context.

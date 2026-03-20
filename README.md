@@ -74,7 +74,7 @@ python conversational_client.py
 |---------|-------------|
 | `load_pdf <path> [name] [--gcs]` | Load threat intel PDF as context |
 | `load_md <path> [name] [--gcs]` | Load Markdown file as context |
-| `threat_intel [list\|clear]` | Manage loaded threat intel context |
+| `threat_intel [list\|clear\|read]` | Manage loaded threat intel context |
 | `threat_model <pdf> [type] [--gcs]` | Analyze threat model PDF |
 | `threat_model --text "<content>"` | Analyze threat model text |
 | `tabletop "<minutes>"` | Analyze tabletop exercise minutes |
@@ -282,6 +282,7 @@ Add this to your MCP configuration file:
 | `load_threat_intel_text(content, document_name, source)` | Load threat intel text as context |
 | `list_threat_intel_context()` | List loaded threat intel documents |
 | `clear_threat_intel_context(document_id)` | Clear threat intel context |
+| `read_threat_intel_context(document_id)` | Read contents of loaded threat intel |
 | `analyze_threat_model_pdf(file_path, source_type, from_gcs, bucket_name)` | Analyze threat model PDF |
 | `analyze_threat_model(document_content, source_type, source_document)` | Analyze threat model text |
 | `analyze_tabletop_minutes(minutes_content, exercise_name, exercise_date)` | Analyze tabletop exercise |

@@ -331,7 +331,7 @@ COMMAND_COMPLETIONS: Dict[str, Dict] = {
     "templates": {"--grok": []},
     "patterns": {},
     "patterns_custom": {},
-    "threat_intel": {"__positional_1": ["list", "clear"]},
+    "threat_intel": {"__positional_1": ["list", "clear", "read"]},
     "load_pdf": {"--gcs": []},
     "load_md": {"--gcs": []},
     "threat_model": {
@@ -839,15 +839,18 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
     # =========================================================================
     
     elif cmd_name == "threat_intel":
-        # usage: threat_intel [list|clear]
+        # usage: threat_intel [list|clear <id>|read <id>]
         subcommand = parts[1] if len(parts) > 1 else "list"
         if subcommand == "list":
             await call_soc_tool("list_threat_intel_context", {})
         elif subcommand == "clear":
             doc_id = parts[2] if len(parts) > 2 else ""
             await call_soc_tool("clear_threat_intel_context", {"document_id": doc_id})
+        elif subcommand == "read" and len(parts) > 2:
+            doc_id = parts[2]
+            await call_soc_tool("read_threat_intel_context", {"document_id": doc_id})
         else:
-            print("Usage: threat_intel [list|clear] [document_id]")
+            print("Usage: threat_intel [list|clear <id>|read <id>]")
         return True
 
     elif cmd_name == "load_pdf":
@@ -1308,7 +1311,7 @@ def print_help():
     print(f"\n{Colors.RED}🎯 Threat Modeling & Attack Paths:{Colors.RESET}")
     print(f"   {Colors.WHITE}load_pdf{Colors.RESET} <path> [name] [--gcs]     Load threat intel PDF as context")
     print(f"   {Colors.WHITE}load_md{Colors.RESET} <path> [name] [--gcs]      Load Markdown file as context")
-    print(f"   {Colors.WHITE}threat_intel{Colors.RESET} [list|clear]          Manage loaded threat intel context")
+    print(f"   {Colors.WHITE}threat_intel{Colors.RESET} [list|clear|read]     Manage loaded threat intel context")
     print(f"   {Colors.WHITE}threat_model{Colors.RESET} <pdf> [type] [--gcs]  Analyze threat model PDF")
     print(f"   {Colors.WHITE}threat_model{Colors.RESET} --text \"<content>\"    Analyze threat model text")
     print(f"   {Colors.WHITE}tabletop{Colors.RESET} \"<minutes>\"               Analyze tabletop exercise minutes")
