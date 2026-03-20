@@ -260,7 +260,7 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
         the loaded PCAP file and output synchronized events.
         """
         s = get_pcap_session()
-        if not s or not s.filename:
+        if not s or not getattr(s, 'file_path', None):
             return "❌ No PCAP loaded. Use 'load_pcap' first."
             
         # Fetch the previously ingested Markdown context
@@ -278,7 +278,7 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
         matches = []
         try:
             # Memory-efficient iterative packet parsing
-            with PcapReader(s.filename) as pcap:
+            with PcapReader(s.file_path) as pcap:
                 for pkt_num, pkt in enumerate(pcap, 1):
                     pkt_time = datetime.utcfromtimestamp(float(pkt.time))
                     pkt_matched = False

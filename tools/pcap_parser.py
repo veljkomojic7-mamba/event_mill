@@ -16,6 +16,7 @@ import os
 import io
 import ipaddress
 import tempfile
+import atexit
 from typing import Optional, Dict, List, Tuple
 from collections import defaultdict, Counter
 from datetime import datetime
@@ -102,6 +103,8 @@ class PcapSession:
 
     def __init__(self) -> None:
         self.filename: str = ""
+        self.file_path: str = ""
+        self._temp_path: Optional[str] = None
         self.file_size: int = 0
         self.packet_count: int = 0
         self.start_time: Optional[float] = None
@@ -164,6 +167,16 @@ _pcap_session: Optional[PcapSession] = None
 def get_pcap_session() -> Optional[PcapSession]:
     return _pcap_session
 
+def _cleanup_pcap_temp():
+    """Clean up any temporary PCAP files on exit."""
+    if _pcap_session and getattr(_pcap_session, '_temp_path', None):
+        try:
+            if os.path.exists(_pcap_session._temp_path):
+                os.unlink(_pcap_session._temp_path)
+        except OSError:
+            pass
+
+atexit.register(_cleanup_pcap_temp)
 
 def _format_bytes(n: int) -> str:
     """Human-readable byte sizes."""
@@ -187,6 +200,7 @@ def parse_pcap_file(file_path: str) -> PcapSession:
     """
     session = PcapSession()
     session.filename = os.path.basename(file_path)
+    session.file_path = file_path
     session.file_size = os.path.getsize(file_path)
 
     with PcapReader(file_path) as reader:
@@ -381,6 +395,14 @@ def register_pcap_parser_tools(mcp, storage_client, gemini_client, get_bucket_fu
                 "Install with: pip install scapy"
             )
 
+        # Clean up previous temp file if it exists
+        if _pcap_session and getattr(_pcap_session, '_temp_path', None):
+            try:
+                if os.path.exists(_pcap_session._temp_path):
+                    os.unlink(_pcap_session._temp_path)
+            except OSError:
+                pass
+
         try:
             if from_gcs:
                 target_bucket = _get_bucket(bucket_name)
@@ -411,13 +433,15 @@ def register_pcap_parser_tools(mcp, storage_client, gemini_client, get_bucket_fu
                     tmp_path = tmp.name
 
                 try:
-                    _pcap_session = parse_pcap_file(tmp_path)
-                    _pcap_session.filename = os.path.basename(
-                        file_path
-                    )
-                    _pcap_session.file_size = blob.size or 0
-                finally:
+                    new_session = parse_pcap_file(tmp_path)
+                    new_session.filename = os.path.basename(file_path)
+                    new_session.file_size = blob.size or 0
+                    new_session._temp_path = tmp_path
+                    global _pcap_session
+                    _pcap_session = new_session
+                except Exception:
                     os.unlink(tmp_path)
+                    raise
 
             else:
                 if not os.path.exists(file_path):
