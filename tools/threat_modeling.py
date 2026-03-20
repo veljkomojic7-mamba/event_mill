@@ -277,6 +277,71 @@ def register_threat_modeling_tools(mcp, storage_client, gemini_client, get_bucke
             return f"Error loading threat intel PDF: {str(e)}"
 
     @mcp.tool()
+    def load_md(
+        file_path: str,
+        document_name: str = "",
+        from_gcs: bool = False,
+        bucket_name: str = ""
+    ) -> str:
+        """
+        Loads a Markdown (.md) file as context for subsequent analysis (e.g., PCAP synchronization).
+        
+        Args:
+            file_path: Path to the MD file (local path or GCS blob path if from_gcs=True)
+            document_name: Optional name for the document (defaults to filename)
+            from_gcs: If True, load from GCS bucket instead of local filesystem
+            bucket_name: GCS bucket name (required if from_gcs=True)
+        
+        Returns:
+            Confirmation with document ID and extracted content summary
+        """
+        try:
+            name = document_name or os.path.basename(file_path)
+            
+            if from_gcs:
+                # Load from GCS
+                target_bucket = _get_bucket(bucket_name)
+                if not target_bucket:
+                    return "Error: No bucket specified and GCS_LOG_BUCKET not set."
+                if not _storage_client:
+                    return "Error: GCS Client not initialized."
+                
+                bucket = _storage_client.bucket(target_bucket)
+                blob = bucket.blob(file_path)
+                content = blob.download_as_text()
+                source = f"gcs://{target_bucket}/{file_path}"
+            else:
+                # Load from local filesystem
+                if not os.path.exists(file_path):
+                    return f"Error: File not found: {file_path}"
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                source = f"file://{file_path}"
+            
+            if not content.strip():
+                return f"Error: No text content could be extracted from {file_path}"
+            
+            doc_id = _threat_intel.add_document(name, content, source)
+            
+            output = []
+            output.append("✅ Markdown Context Loaded")
+            output.append("")
+            output.append(f"**Document ID:** `{doc_id}`")
+            output.append(f"**Name:** {name}")
+            output.append(f"**Source:** {source}")
+            output.append(f"**Characters:** {len(content):,}")
+            output.append("")
+            output.append("This MD context is now available for analysis.")
+            output.append("")
+            output.append(_threat_intel.get_summary())
+            
+            return "\n".join(output)
+            
+        except Exception as e:
+            logging.error(f"Error loading MD file: {e}")
+            return f"Error loading MD file: {str(e)}"
+
+    @mcp.tool()
     def load_threat_intel_text(
         content: str,
         document_name: str,

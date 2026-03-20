@@ -73,6 +73,7 @@ python conversational_client.py
 | Command | Description |
 |---------|-------------|
 | `load_pdf <path> [name] [--gcs]` | Load threat intel PDF as context |
+| `load_md <path> [name] [--gcs]` | Load Markdown file as context |
 | `threat_intel [list\|clear]` | Manage loaded threat intel context |
 | `threat_model <pdf> [type] [--gcs]` | Analyze threat model PDF |
 | `threat_model --text "<content>"` | Analyze threat model text |
@@ -277,6 +278,7 @@ Add this to your MCP configuration file:
 | Tool | Description |
 |------|-------------|
 | `load_threat_intel_pdf(file_path, document_name, from_gcs, bucket_name)` | Load threat intel PDF as context |
+| `load_md(file_path, document_name, from_gcs, bucket_name)` | Load Markdown file as context |
 | `load_threat_intel_text(content, document_name, source)` | Load threat intel text as context |
 | `list_threat_intel_context()` | List loaded threat intel documents |
 | `clear_threat_intel_context(document_id)` | Clear threat intel context |
@@ -400,4 +402,3 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed deployment instruction
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
 
 You are free to use, modify, and distribute this software. Attribution to the original Event Mill project is appreciated.
-

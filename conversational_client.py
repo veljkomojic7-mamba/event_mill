@@ -333,6 +333,7 @@ COMMAND_COMPLETIONS: Dict[str, Dict] = {
     "patterns_custom": {},
     "threat_intel": {"__positional_1": ["list", "clear"]},
     "load_pdf": {"--gcs": []},
+    "load_md": {"--gcs": []},
     "threat_model": {
         "--gcs": [],
         "--text": [],
@@ -372,6 +373,7 @@ COMMAND_COMPLETIONS: Dict[str, Dict] = {
     "viz_compact": {},
     "load_pcap": {"--gcs": []},
     "pcap_summary": {},
+    "sync_pcap": {},
     "pcap_convos": {
         "--by": ["bytes", "packets", "duration"],
         "--top": [],
@@ -872,6 +874,27 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
         })
         return True
 
+    elif cmd_name == "load_md":
+        # usage: load_md <file_path> [document_name] [--gcs]
+        if len(parts) < 2:
+            print("Usage: load_md <file_path> [document_name] [--gcs]")
+            print("  Load a Markdown (.md) file as context for analysis")
+            print("")
+            print("  Examples:")
+            print("    load_md /path/to/incident.md")
+            print("    load_md incidents/report.md \"Incident Report\" --gcs")
+            return True
+        file_path = parts[1]
+        from_gcs = "--gcs" in parts
+        remaining = [p for p in parts[2:] if p.lower() not in ("--gcs", "true", "false")]
+        doc_name = remaining[0] if remaining else ""
+        await call_soc_tool("load_md", {
+            "file_path": file_path,
+            "document_name": doc_name,
+            "from_gcs": from_gcs
+        })
+        return True
+
     elif cmd_name == "threat_model":
         # usage: threat_model <file_path> [source_type] [--gcs] OR threat_model --text "<content>"
         if len(parts) < 2:
@@ -1026,6 +1049,11 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
 
     elif cmd_name == "pcap_summary":
         await call_soc_tool("pcap_summary", {})
+        return True
+
+    elif cmd_name == "sync_pcap":
+        # usage: sync_pcap
+        await call_soc_tool("sync_pcap", {})
         return True
 
     elif cmd_name == "pcap_convos":
@@ -1279,6 +1307,7 @@ def print_help():
     
     print(f"\n{Colors.RED}🎯 Threat Modeling & Attack Paths:{Colors.RESET}")
     print(f"   {Colors.WHITE}load_pdf{Colors.RESET} <path> [name] [--gcs]     Load threat intel PDF as context")
+    print(f"   {Colors.WHITE}load_md{Colors.RESET} <path> [name] [--gcs]      Load Markdown file as context")
     print(f"   {Colors.WHITE}threat_intel{Colors.RESET} [list|clear]          Manage loaded threat intel context")
     print(f"   {Colors.WHITE}threat_model{Colors.RESET} <pdf> [type] [--gcs]  Analyze threat model PDF")
     print(f"   {Colors.WHITE}threat_model{Colors.RESET} --text \"<content>\"    Analyze threat model text")
@@ -1303,6 +1332,7 @@ def print_help():
     print(f"\n{Colors.RED}🔬 PCAP Threat Hunting:{Colors.RESET}")
     print(f"   {Colors.WHITE}load_pcap{Colors.RESET} <file> [--gcs]           Load PCAP for analysis (max 50 MB)")
     print(f"   {Colors.WHITE}pcap_summary{Colors.RESET}                       Show loaded PCAP stats")
+    print(f"   {Colors.WHITE}sync_pcap{Colors.RESET}                          Correlate loaded MD context with loaded PCAP")
     print(f"   {Colors.WHITE}pcap_convos{Colors.RESET} [--by bytes|packets]   List network conversations")
     print(f"   {Colors.WHITE}pcap_dns{Colors.RESET} [N]                       Extract DNS activity")
     print(f"   {Colors.WHITE}pcap_http{Colors.RESET} [N]                      Extract HTTP requests")
