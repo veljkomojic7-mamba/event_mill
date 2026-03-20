@@ -583,6 +583,20 @@ def setup_readline():
     readline.set_completer_delims(" \t")
     readline.parse_and_bind("tab: complete")
 
+    # Fix for Windows pyreadline3 disabling QuickEdit mode (which prevents selecting/copying text)
+    if sys.platform == 'win32':
+        try:
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.GetStdHandle(-10)  # STD_INPUT_HANDLE
+            mode = ctypes.c_uint32()
+            kernel32.GetConsoleMode(handle, ctypes.byref(mode))
+            # ENABLE_QUICK_EDIT_MODE (0x0040) | ENABLE_EXTENDED_FLAGS (0x0080)
+            mode.value |= 0x0040 | 0x0080
+            kernel32.SetConsoleMode(handle, mode)
+        except Exception:
+            pass
+
 
 async def run_conversational_soc_client():
     # Setup command history
