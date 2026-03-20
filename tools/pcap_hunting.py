@@ -9,13 +9,17 @@ Tools:
 - hunt_tls: TLS fingerprint and SNI analysis
 - hunt_lateral: Lateral movement detection
 - hunt_exfil: Data exfiltration indicators
+- sync_pcap: Correlates loaded MD context with PCAP telemetry
 """
 
 import logging
 import math
+import re
 from typing import Dict, List, Optional
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
+
+from scapy.all import PcapReader, IP, IPv6, Ether, DNSQR, TCP, UDP
 
 from system_context import (
     get_pcap_triage_prompt,
@@ -109,6 +113,41 @@ def _service_name(port: int) -> str:
         return "Ephemeral"
     return "Unknown"
 
+
+# =========================================================================
+# STAGE 1: MARKDOWN INGESTION & EXTRACTION
+# =========================================================================
+
+def _extract_iocs_from_md(md_text: str) -> Dict[str, set]:
+    """Extracts behavioral and temporal IOCs from a Markdown string."""
+    iocs = {
+        "ips": set(re.findall(r'\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b', md_text)),
+        "macs": set(re.findall(r'\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b', md_text, re.IGNORECASE)),
+        "domains": set(),
+        "ports": set(),
+        "timestamps": []
+    }
+    
+    # Domains (basic heuristic, excludes raw IPs)
+    domains = set(re.findall(r'\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b', md_text))
+    iocs["domains"] = {d for d in domains if not re.match(r'^\d+\.\d+\.\d+\.\d+$', d)}
+    
+    # Ports (look for context like "port 4444", "tcp/80", or ":3389")
+    port_matches = re.findall(r'\b(?:port\s+|tcp/|udp/|:)(\d{1,5})\b', md_text, re.IGNORECASE)
+    for p in port_matches:
+        if 1 <= int(p) <= 65535:
+            iocs["ports"].add(int(p))
+            
+    # Timestamps (ISO8601 variations)
+    ts_matches = re.findall(r'\b\d{4}-\d{2}-\d{2}(?:T|\s)\d{2}:\d{2}:\d{2}(?:Z|\+\d{2}:\d{2})?\b', md_text)
+    for ts_str in ts_matches:
+        try:
+            clean_ts = ts_str.replace('T', ' ').split('+')[0].replace('Z', '')
+            iocs["timestamps"].append(datetime.strptime(clean_ts, '%Y-%m-%d %H:%M:%S'))
+        except ValueError:
+            continue
+            
+    return iocs
 
 # =========================================================================
 # MCP TOOL REGISTRATION
@@ -211,6 +250,119 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
                 f"{t['protocols']}{flag}"
             )
 
+        return "\n".join(out)
+
+    @mcp.tool()
+    def sync_pcap() -> str:
+        """
+        Stage 2 & 3: PCAP Correlation Engine and Output Generation.
+        Uses the globally loaded Markdown context to programmatically filter
+        the loaded PCAP file and output synchronized events.
+        """
+        s = get_pcap_session()
+        if not s or not s.filename:
+            return "❌ No PCAP loaded. Use 'load_pcap' first."
+            
+        # Fetch the previously ingested Markdown context
+        from tools.threat_modeling import get_threat_intel_context
+        ti_context = get_threat_intel_context()
+        md_text = ti_context.get_combined_context()
+        if not md_text:
+            return "❌ No Markdown context loaded. Use 'load_md' first to provide investigation notes."
+            
+        # Run Stage 1 Extraction
+        iocs = _extract_iocs_from_md(md_text)
+        if not any(iocs.values()):
+            return "⚠️ No recognizable IOCs (IPs, MACs, Domains, Ports, Timestamps) found in the loaded Markdown."
+            
+        matches = []
+        try:
+            # Memory-efficient iterative packet parsing
+            with PcapReader(s.filename) as pcap:
+                for pkt_num, pkt in enumerate(pcap, 1):
+                    pkt_time = datetime.utcfromtimestamp(float(pkt.time))
+                    pkt_matched = False
+                    match_reasons = []
+                    
+                    # Temporal correlation (5-minute hunting window)
+                    for ts in iocs["timestamps"]:
+                        if abs((pkt_time - ts).total_seconds()) <= 300:
+                            pkt_matched = True
+                            match_reasons.append(f"Temporal Context (~5m window of {ts})")
+                            break
+                            
+                    # IP Context
+                    if IP in pkt:
+                        if pkt[IP].src in iocs["ips"]:
+                            pkt_matched = True; match_reasons.append(f"Source IP: {pkt[IP].src}")
+                        if pkt[IP].dst in iocs["ips"]:
+                            pkt_matched = True; match_reasons.append(f"Dest IP: {pkt[IP].dst}")
+                    elif IPv6 in pkt:
+                        if pkt[IPv6].src in iocs["ips"]:
+                            pkt_matched = True; match_reasons.append(f"Source IPv6: {pkt[IPv6].src}")
+                        if pkt[IPv6].dst in iocs["ips"]:
+                            pkt_matched = True; match_reasons.append(f"Dest IPv6: {pkt[IPv6].dst}")
+                            
+                    # MAC Context
+                    if Ether in pkt:
+                        src_mac = pkt[Ether].src.lower()
+                        dst_mac = pkt[Ether].dst.lower()
+                        if src_mac in [m.lower() for m in iocs["macs"]]:
+                            pkt_matched = True; match_reasons.append(f"Source MAC: {src_mac}")
+                        if dst_mac in [m.lower() for m in iocs["macs"]]:
+                            pkt_matched = True; match_reasons.append(f"Dest MAC: {dst_mac}")
+                            
+                    # Port Context
+                    if TCP in pkt or UDP in pkt:
+                        if pkt.sport in iocs["ports"]:
+                            pkt_matched = True; match_reasons.append(f"Source Port: {pkt.sport}")
+                        if pkt.dport in iocs["ports"]:
+                            pkt_matched = True; match_reasons.append(f"Dest Port: {pkt.dport}")
+                            
+                    # Domain/DNS Context
+                    if DNSQR in pkt:
+                        qname = pkt[DNSQR].qname.decode('utf-8', 'ignore').rstrip('.')
+                        if qname in iocs["domains"]:
+                            pkt_matched = True; match_reasons.append(f"DNS Query: {qname}")
+                            
+                    if pkt_matched:
+                        matches.append({
+                            "packet_num": pkt_num,
+                            "timestamp": pkt_time.strftime('%Y-%m-%d %H:%M:%S UTC'),
+                            "reasons": ", ".join(match_reasons),
+                            "summary": pkt.summary()
+                        })
+                        
+                    # Hard limit to protect against console flooding on generic matches
+                    if len(matches) >= 150:
+                        matches.append({"limit_reached": True})
+                        break
+                        
+        except Exception as e:
+            return f"❌ Error reading PCAP file: {e}"
+            
+        # Output Generation
+        out = []
+        out.append("=" * 60)
+        out.append("🔄 SYNCHRONIZED INCIDENT TIMELINE")
+        out.append("=" * 60)
+        out.append(f"Extracted from MD: {len(iocs['ips'])} IPs, {len(iocs['domains'])} Domains, {len(iocs['ports'])} Ports, {len(iocs['timestamps'])} Time Anchors")
+        out.append(f"Target PCAP: {s.filename}\n")
+        
+        if not matches:
+            out.append("✅ No correlated network events found between the MD documentation and the PCAP file.")
+            return "\n".join(out)
+            
+        for m in matches:
+            if "limit_reached" in m:
+                out.append("\n⚠️ Warning: Match limit reached (150 packets). Refine MD documentation.")
+                continue
+                
+            out.append(f"[{m['reasons']}] <---> [Packet #{m['packet_num']} / {m['timestamp']}]")
+            out.append(f"Reasoning: Network event directly matches the documented context.")
+            out.append(f"Summary: {m['summary'][:150]}")
+            out.append("-" * 60)
+            
         return "\n".join(out)
 
     @mcp.tool()
