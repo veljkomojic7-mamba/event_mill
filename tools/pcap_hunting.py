@@ -346,6 +346,16 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
         out.append("# 🔄 Synchronized Incident Timeline")
         out.append("")
         out.append(f"- **Extracted from MD:** {len(iocs['ips'])} IPs, {len(iocs['domains'])} Domains, {len(iocs['ports'])} Ports, {len(iocs['timestamps'])} Time Anchors")
+        
+        if iocs['ips']:
+            out.append(f"  - **IPs:** {', '.join(sorted(list(iocs['ips'])))}")
+        if iocs['domains']:
+            out.append(f"  - **Domains:** {', '.join(sorted(list(iocs['domains'])))}")
+        if iocs['ports']:
+            out.append(f"  - **Ports:** {', '.join(str(p) for p in sorted(list(iocs['ports'])))}")
+        if iocs['timestamps']:
+            out.append(f"  - **Time Anchors:** {', '.join(ts.strftime('%Y-%m-%d %H:%M:%S') for ts in sorted(iocs['timestamps']))}")
+            
         out.append(f"- **Target PCAP:** `{s.filename}`")
         out.append("")
         
