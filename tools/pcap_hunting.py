@@ -343,11 +343,6 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
             
         # Output Generation
         out = []
-        out.append("=" * 60)
-        out.append("🔄 SYNCHRONIZED INCIDENT TIMELINE")
-        out.append("=" * 60)
-        out.append(f"Extracted from MD: {len(iocs['ips'])} IPs, {len(iocs['domains'])} Domains, {len(iocs['ports'])} Ports, {len(iocs['timestamps'])} Time Anchors")
-        out.append(f"Target PCAP: {s.filename}\n")
         out.append("# 🔄 Synchronized Incident Timeline")
         out.append("")
         out.append(f"- **Extracted from MD:** {len(iocs['ips'])} IPs, {len(iocs['domains'])} Domains, {len(iocs['ports'])} Ports, {len(iocs['timestamps'])} Time Anchors")
@@ -355,22 +350,15 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
         out.append("")
         
         if not matches:
-            out.append("✅ No correlated network events found between the MD documentation and the PCAP file.")
             out.append("---")
             out.append("\n✅ No correlated network events found between the MD documentation and the PCAP file.")
             return "\n".join(out)
             
-        for m in matches:
         for i, m in enumerate(matches, 1):
             if "limit_reached" in m:
-                out.append("\n⚠️ Warning: Match limit reached (150 packets). Refine MD documentation.")
                 out.append("\n---\n\n**⚠️ Warning:** Match limit reached (150 packets). Refine MD documentation for more specific IOCs.")
                 continue
                 
-            out.append(f"[{m['reasons']}] <---> [Packet #{m['packet_num']} / {m['timestamp']}]")
-            out.append(f"Reasoning: Network event directly matches the documented context.")
-            out.append(f"Summary: {m['summary'][:150]}")
-            out.append("-" * 60)
             out.append("---")
             out.append(f"\n### Match #{i}: {m['reasons']}")
             out.append(f"- **Packet:** `{m['packet_num']}`")
