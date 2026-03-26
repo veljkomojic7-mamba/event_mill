@@ -960,7 +960,7 @@ def register_pcap_parser_tools(mcp, storage_client, gemini_client, get_bucket_fu
     # =================================================================
 
     @mcp.tool()
-    def ai_pcap_summary() -> str:
+    def ai_pcap_summary(condition_orange: bool = False) -> str:
         """
         AI-enhanced PCAP summary. Runs pcap_summary then
         sends output to Gemini for triage, anomaly detection,
@@ -983,6 +983,7 @@ def register_pcap_parser_tools(mcp, storage_client, gemini_client, get_bucket_fu
             prompt = get_pcap_triage_prompt(
                 file_name=s.filename,
                 pcap_summary_data=static,
+                condition_orange=condition_orange,
             )
             response = _gemini_client.models.generate_content(
                 model='gemini-3-flash-preview',

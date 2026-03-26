@@ -1208,7 +1208,7 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
     # AI-ENHANCED HUNT TOOLS (Gemini LLM analysis)
     # =================================================================
 
-    def _ai_enhance(static_output: str, prompt_func, file_name: str) -> str:
+    def _ai_enhance(static_output: str, prompt_func, file_name: str, condition_orange: bool = False) -> str:
         """Run static output through Gemini AI analysis."""
         if not _gemini_client:
             return (
@@ -1220,6 +1220,7 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
             prompt = prompt_func(
                 file_name=file_name,
                 pcap_summary_data=static_output,
+                condition_orange=condition_orange
             )
             response = _gemini_client.models.generate_content(
                 model='gemini-3-flash-preview',
@@ -1244,6 +1245,7 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
     def ai_hunt_talkers(
         top_n: int = 20,
         by: str = "bytes",
+        condition_orange: bool = False,
     ) -> str:
         """
         AI-enhanced top talkers analysis. Runs hunt_talkers
@@ -1259,13 +1261,14 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
             return "No PCAP loaded. Use load_pcap first."
         static = hunt_talkers(top_n=top_n, by=by)
         return _ai_enhance(
-            static, get_pcap_triage_prompt, s.filename
+            static, get_pcap_triage_prompt, s.filename, condition_orange
         )
 
     @mcp.tool()
     def ai_hunt_beacons(
         min_connections: int = 10,
         max_jitter_pct: float = 15.0,
+        condition_orange: bool = False,
     ) -> str:
         """
         AI-enhanced C2 beaconing analysis. Runs hunt_beacons
@@ -1284,11 +1287,11 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
             max_jitter_pct=max_jitter_pct,
         )
         return _ai_enhance(
-            static, get_pcap_threat_hunt_prompt, s.filename
+            static, get_pcap_threat_hunt_prompt, s.filename, condition_orange
         )
 
     @mcp.tool()
-    def ai_hunt_dns() -> str:
+    def ai_hunt_dns(condition_orange: bool = False) -> str:
         """
         AI-enhanced DNS anomaly analysis. Runs hunt_dns then
         uses Gemini to evaluate DGA likelihood, classify
@@ -1299,11 +1302,11 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
             return "No PCAP loaded. Use load_pcap first."
         static = hunt_dns()
         return _ai_enhance(
-            static, get_pcap_threat_hunt_prompt, s.filename
+            static, get_pcap_threat_hunt_prompt, s.filename, condition_orange
         )
 
     @mcp.tool()
-    def ai_hunt_tls() -> str:
+    def ai_hunt_tls(condition_orange: bool = False) -> str:
         """
         AI-enhanced TLS analysis. Runs hunt_tls then uses
         Gemini to flag suspicious SNI/certificate patterns
@@ -1314,11 +1317,11 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
             return "No PCAP loaded. Use load_pcap first."
         static = hunt_tls()
         return _ai_enhance(
-            static, get_pcap_threat_hunt_prompt, s.filename
+            static, get_pcap_threat_hunt_prompt, s.filename, condition_orange
         )
 
     @mcp.tool()
-    def ai_hunt_lateral() -> str:
+    def ai_hunt_lateral(condition_orange: bool = False) -> str:
         """
         AI-enhanced lateral movement analysis. Runs
         hunt_lateral then uses Gemini to map findings
@@ -1329,13 +1332,14 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
             return "No PCAP loaded. Use load_pcap first."
         static = hunt_lateral()
         return _ai_enhance(
-            static, get_pcap_threat_hunt_prompt, s.filename
+            static, get_pcap_threat_hunt_prompt, s.filename, condition_orange
         )
 
     @mcp.tool()
     def ai_hunt_exfil(
         min_ratio: float = 10.0,
         min_bytes_out: int = 1048576,
+        condition_orange: bool = False,
     ) -> str:
         """
         AI-enhanced exfiltration analysis. Runs hunt_exfil
@@ -1354,11 +1358,11 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
             min_bytes_out=min_bytes_out,
         )
         return _ai_enhance(
-            static, get_pcap_reporting_prompt, s.filename
+            static, get_pcap_reporting_prompt, s.filename, condition_orange
         )
 
     @mcp.tool()
-    def ai_sync_pcap(detailed: bool = False, limit: int = 150) -> str:
+    def ai_sync_pcap(detailed: bool = False, limit: int = 150, condition_orange: bool = False) -> str:
         """
         AI-enhanced PCAP synchronization. Runs sync_pcap then
         uses Gemini to analyze the correlated timeline, assess
@@ -1367,11 +1371,12 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
         Args:
             detailed: Include packet-by-packet breakdown
             limit: Match limit
+            condition_orange: Heightened state of alert
         """
         s = get_pcap_session()
         if not s or not getattr(s, 'file_path', None):
             return "❌ No PCAP loaded. Use 'load_pcap' first."
         static = sync_pcap(detailed=detailed, limit=limit)
         return _ai_enhance(
-            static, get_pcap_threat_hunt_prompt, s.filename
+            static, get_pcap_threat_hunt_prompt, s.filename, condition_orange
         )

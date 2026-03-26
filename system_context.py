@@ -659,6 +659,7 @@ LIMITATIONS:
 PCAP_TRIAGE_PROMPT = """
 {pcap_system_identity}
 {session_context}
+{alert_condition}
 CURRENT TASK:
 You are a SOC Analyst conducting initial triage on a parsed network traffic capture. Analyze the following PCAP summary from a file named '{file_name}'.
 
@@ -689,6 +690,7 @@ Finally, end your response with a TL;DR section:
 PCAP_THREAT_HUNT_PROMPT = """
 {pcap_system_identity}
 {session_context}
+{alert_condition}
 CURRENT TASK:
 You are a proactive Threat Hunter analyzing a parsed PCAP summary for advanced persistent threats (APTs) or stealthy network intrusions.
 
@@ -715,6 +717,7 @@ Finally, end your response with a TL;DR section:
 PCAP_REPORTING_AND_IOC_PROMPT = """
 {pcap_system_identity}
 {session_context}
+{alert_condition}
 CURRENT TASK:
 You are a Senior Incident Responder tasked with wrapping up the analysis of network traffic from '{file_name}' and preparing documentation for the SOC.
 
@@ -750,14 +753,24 @@ def get_pcap_triage_prompt(
     file_name: str,
     pcap_summary_data: str,
     include_history: bool = True,
+    condition_orange: bool = False,
 ) -> str:
     """Get the formatted PCAP triage prompt."""
     session_context = (
         get_context_for_prompt() if include_history else ""
     )
+    alert_cond = (
+        "\n🚨 CONDITION ORANGE ACTIVE: The organization is in a heightened state of alert. "
+        "Be highly paranoid. Flag even slightly anomalous behavior as potentially malicious. "
+        "Connect weak signals and assume the worst-case scenario.\n"
+    ) if condition_orange else (
+        "\n✅ NORMAL CONDITION: Base your analysis strictly on clear evidence. "
+        "Do not be overly cautious. If there is no solid evidence of a threat, state so clearly.\n"
+    )
     return PCAP_TRIAGE_PROMPT.format(
         pcap_system_identity=PCAP_SYSTEM_IDENTITY,
         session_context=session_context,
+        alert_condition=alert_cond,
         file_name=file_name,
         pcap_summary_data=pcap_summary_data,
     )
@@ -767,14 +780,24 @@ def get_pcap_threat_hunt_prompt(
     file_name: str,
     pcap_summary_data: str,
     include_history: bool = True,
+    condition_orange: bool = False,
 ) -> str:
     """Get the formatted PCAP threat hunt prompt."""
     session_context = (
         get_context_for_prompt() if include_history else ""
     )
+    alert_cond = (
+        "\n🚨 CONDITION ORANGE ACTIVE: The organization is in a heightened state of alert. "
+        "Be highly paranoid. Flag even slightly anomalous behavior as potentially malicious. "
+        "Connect weak signals and assume the worst-case scenario.\n"
+    ) if condition_orange else (
+        "\n✅ NORMAL CONDITION: Base your analysis strictly on clear evidence. "
+        "Do not be overly cautious. If there is no solid evidence of a threat, state so clearly.\n"
+    )
     return PCAP_THREAT_HUNT_PROMPT.format(
         pcap_system_identity=PCAP_SYSTEM_IDENTITY,
         session_context=session_context,
+        alert_condition=alert_cond,
         file_name=file_name,
         pcap_summary_data=pcap_summary_data,
     )
@@ -785,14 +808,24 @@ def get_pcap_reporting_prompt(
     pcap_summary_data: str,
     previous_analysis_context: str = "No previous analysis.",
     include_history: bool = True,
+    condition_orange: bool = False,
 ) -> str:
     """Get the formatted PCAP reporting and IOC extraction prompt."""
     session_context = (
         get_context_for_prompt() if include_history else ""
     )
+    alert_cond = (
+        "\n🚨 CONDITION ORANGE ACTIVE: The organization is in a heightened state of alert. "
+        "Be highly paranoid. Flag even slightly anomalous behavior as potentially malicious. "
+        "Connect weak signals and assume the worst-case scenario.\n"
+    ) if condition_orange else (
+        "\n✅ NORMAL CONDITION: Base your analysis strictly on clear evidence. "
+        "Do not be overly cautious. If there is no solid evidence of a threat, state so clearly.\n"
+    )
     return PCAP_REPORTING_AND_IOC_PROMPT.format(
         pcap_system_identity=PCAP_SYSTEM_IDENTITY,
         session_context=session_context,
+        alert_condition=alert_cond,
         file_name=file_name,
         pcap_summary_data=pcap_summary_data,
         previous_analysis_context=previous_analysis_context,

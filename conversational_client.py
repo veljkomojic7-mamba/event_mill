@@ -411,14 +411,26 @@ COMMAND_COMPLETIONS: Dict[str, Dict] = {
         "--min": [],
         "--jitter": [],
     },
-    "ai_hunt_dns": {},
-    "ai_hunt_tls": {},
-    "ai_hunt_lateral": {},
+    "ai_pcap_summary": {"--orange": []},
+    "ai_hunt_talkers": {
+        "--by": ["bytes", "connections", "conns", "packets"],
+        "--top": [],
+        "--orange": [],
+    },
+    "ai_hunt_beacons": {
+        "--min": [],
+        "--jitter": [],
+        "--orange": [],
+    },
+    "ai_hunt_dns": {"--orange": []},
+    "ai_hunt_tls": {"--orange": []},
+    "ai_hunt_lateral": {"--orange": []},
     "ai_hunt_exfil": {
         "--ratio": [],
         "--min-bytes": [],
+        "--orange": [],
     },
-    "ai_sync_pcap": {"--detailed": [], "--limit": []},
+    "ai_sync_pcap": {"--detailed": [], "--limit": [], "--orange": []},
     "help": {},
     "exit": {},
     "quit": {},
@@ -1246,11 +1258,13 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
 
     # ── AI-Enhanced PCAP Commands ──
     elif cmd_name == "ai_pcap_summary":
-        await call_soc_tool("ai_pcap_summary", {})
+        orange = "--orange" in parts
+        await call_soc_tool("ai_pcap_summary", {"condition_orange": orange})
         return True
 
     elif cmd_name == "ai_sync_pcap":
         detailed = "--detailed" in parts
+        orange = "--orange" in parts
         limit = 150  # Default limit
         for idx, p in enumerate(parts):
             if p == "--limit" and idx + 1 < len(parts):
@@ -1259,12 +1273,13 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
                 except ValueError:
                     print(f"⚠️ Invalid limit value '{parts[idx+1]}'. Using default {limit}.")
                     pass
-        await call_soc_tool("ai_sync_pcap", {"detailed": detailed, "limit": limit})
+        await call_soc_tool("ai_sync_pcap", {"detailed": detailed, "limit": limit, "condition_orange": orange})
         return True
 
     elif cmd_name == "ai_hunt_talkers":
         by = "bytes"
         top_n = 20
+        orange = "--orange" in parts
         for idx, p in enumerate(parts):
             if p == "--by" and idx + 1 < len(parts):
                 by = parts[idx + 1]
@@ -1274,13 +1289,14 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
                 except ValueError:
                     pass
         await call_soc_tool("ai_hunt_talkers", {
-            "top_n": top_n, "by": by
+            "top_n": top_n, "by": by, "condition_orange": orange
         })
         return True
 
     elif cmd_name == "ai_hunt_beacons":
         min_conns = 10
         jitter = 15.0
+        orange = "--orange" in parts
         for idx, p in enumerate(parts):
             if p == "--min" and idx + 1 < len(parts):
                 try:
@@ -1294,25 +1310,30 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
                     pass
         await call_soc_tool("ai_hunt_beacons", {
             "min_connections": min_conns,
-            "max_jitter_pct": jitter
+            "max_jitter_pct": jitter,
+            "condition_orange": orange
         })
         return True
 
     elif cmd_name == "ai_hunt_dns":
-        await call_soc_tool("ai_hunt_dns", {})
+        orange = "--orange" in parts
+        await call_soc_tool("ai_hunt_dns", {"condition_orange": orange})
         return True
 
     elif cmd_name == "ai_hunt_tls":
-        await call_soc_tool("ai_hunt_tls", {})
+        orange = "--orange" in parts
+        await call_soc_tool("ai_hunt_tls", {"condition_orange": orange})
         return True
 
     elif cmd_name == "ai_hunt_lateral":
-        await call_soc_tool("ai_hunt_lateral", {})
+        orange = "--orange" in parts
+        await call_soc_tool("ai_hunt_lateral", {"condition_orange": orange})
         return True
 
     elif cmd_name == "ai_hunt_exfil":
         min_ratio = 10.0
         min_bytes = 1048576
+        orange = "--orange" in parts
         for idx, p in enumerate(parts):
             if p == "--ratio" and idx + 1 < len(parts):
                 try:
@@ -1326,7 +1347,8 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
                     pass
         await call_soc_tool("ai_hunt_exfil", {
             "min_ratio": min_ratio,
-            "min_bytes_out": min_bytes
+            "min_bytes_out": min_bytes,
+            "condition_orange": orange
         })
         return True
 
@@ -1410,14 +1432,15 @@ def print_help():
     print(f"   {Colors.DIM}   → Detects suspicious ports, beaconing, DGA, cross-zone ICS traffic{Colors.RESET}")
     
     print(f"\n{Colors.CYAN}🤖 AI-Enhanced PCAP (Gemini):{Colors.RESET}")
-    print(f"   {Colors.WHITE}ai_pcap_summary{Colors.RESET}                    AI triage of PCAP summary")
-    print(f"   {Colors.WHITE}ai_hunt_talkers{Colors.RESET} [--by bytes|conns]  AI top talkers analysis")
-    print(f"   {Colors.WHITE}ai_hunt_beacons{Colors.RESET}                    AI C2 beaconing detection")
-    print(f"   {Colors.WHITE}ai_hunt_dns{Colors.RESET}                        AI DNS anomaly analysis")
-    print(f"   {Colors.WHITE}ai_hunt_tls{Colors.RESET}                        AI TLS/SNI analysis")
-    print(f"   {Colors.WHITE}ai_hunt_lateral{Colors.RESET}                    AI lateral movement detection")
-    print(f"   {Colors.WHITE}ai_hunt_exfil{Colors.RESET}                      AI exfiltration analysis")
-    print(f"   {Colors.WHITE}ai_sync_pcap{Colors.RESET} [--detailed] [--limit] AI analysis of correlated timeline")
+    print(f"   {Colors.DIM}Note: Add --orange to any AI command to enable heightened paranoid analysis{Colors.RESET}")
+    print(f"   {Colors.WHITE}ai_pcap_summary{Colors.RESET} [--orange]          AI triage of PCAP summary")
+    print(f"   {Colors.WHITE}ai_hunt_talkers{Colors.RESET} [--by] [--orange]   AI top talkers analysis")
+    print(f"   {Colors.WHITE}ai_hunt_beacons{Colors.RESET} [--orange]          AI C2 beaconing detection")
+    print(f"   {Colors.WHITE}ai_hunt_dns{Colors.RESET} [--orange]              AI DNS anomaly analysis")
+    print(f"   {Colors.WHITE}ai_hunt_tls{Colors.RESET} [--orange]              AI TLS/SNI analysis")
+    print(f"   {Colors.WHITE}ai_hunt_lateral{Colors.RESET} [--orange]          AI lateral movement detection")
+    print(f"   {Colors.WHITE}ai_hunt_exfil{Colors.RESET} [--orange]            AI exfiltration analysis")
+    print(f"   {Colors.WHITE}ai_sync_pcap{Colors.RESET} [--orange]             AI analysis of correlated timeline")
     
     print(f"\n{Colors.CYAN}🤖 Natural Language (AI-Powered):{Colors.RESET}")
     print(f"   {Colors.DIM}'Show me the top talkers from the web server logs'{Colors.RESET}")
