@@ -374,7 +374,7 @@ COMMAND_COMPLETIONS: Dict[str, Dict] = {
     "viz_compact": {},
     "load_pcap": {"--gcs": []},
     "pcap_summary": {},
-    "sync_pcap": {"--detailed": []},
+    "sync_pcap": {"--detailed": [], "--limit": []},
     "pcap_convos": {
         "--by": ["bytes", "packets", "duration"],
         "--top": [],
@@ -418,6 +418,7 @@ COMMAND_COMPLETIONS: Dict[str, Dict] = {
         "--ratio": [],
         "--min-bytes": [],
     },
+    "ai_sync_pcap": {"--detailed": [], "--limit": []},
     "help": {},
     "exit": {},
     "quit": {},
@@ -1089,9 +1090,17 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
         return True
 
     elif cmd_name == "sync_pcap":
-        # usage: sync_pcap [--detailed]
+        # usage: sync_pcap [--detailed] [--limit N]
         detailed = "--detailed" in parts
-        await call_soc_tool("sync_pcap", {"detailed": detailed})
+        limit = 150  # Default limit
+        for idx, p in enumerate(parts):
+            if p == "--limit" and idx + 1 < len(parts):
+                try:
+                    limit = int(parts[idx + 1])
+                except ValueError:
+                    print(f"⚠️ Invalid limit value '{parts[idx+1]}'. Using default {limit}.")
+                    pass
+        await call_soc_tool("sync_pcap", {"detailed": detailed, "limit": limit})
         return True
 
     elif cmd_name == "pcap_convos":
@@ -1240,6 +1249,19 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
         await call_soc_tool("ai_pcap_summary", {})
         return True
 
+    elif cmd_name == "ai_sync_pcap":
+        detailed = "--detailed" in parts
+        limit = 150  # Default limit
+        for idx, p in enumerate(parts):
+            if p == "--limit" and idx + 1 < len(parts):
+                try:
+                    limit = int(parts[idx + 1])
+                except ValueError:
+                    print(f"⚠️ Invalid limit value '{parts[idx+1]}'. Using default {limit}.")
+                    pass
+        await call_soc_tool("ai_sync_pcap", {"detailed": detailed, "limit": limit})
+        return True
+
     elif cmd_name == "ai_hunt_talkers":
         by = "bytes"
         top_n = 20
@@ -1371,7 +1393,7 @@ def print_help():
     print(f"   {Colors.WHITE}load_pcap{Colors.RESET} <file> [--gcs]           Load PCAP for analysis (max 50 MB)")
     print(f"   {Colors.WHITE}pcap_summary{Colors.RESET}                       Show loaded PCAP stats")
     print(f"   {Colors.WHITE}load_md_onenote{Colors.RESET} <path> [name] [--gcs] Load OneNote Markdown for PCAP correlation")
-    print(f"   {Colors.WHITE}sync_pcap{Colors.RESET} [--detailed]               Correlate loaded OneNote MD with PCAP telemetry")
+    print(f"   {Colors.WHITE}sync_pcap{Colors.RESET} [--detailed] [--limit N]  Correlate loaded OneNote MD with PCAP telemetry")
     print(f"   {Colors.WHITE}pcap_convos{Colors.RESET} [--by bytes|packets]   List network conversations")
     print(f"   {Colors.WHITE}pcap_dns{Colors.RESET} [N]                       Extract DNS activity")
     print(f"   {Colors.WHITE}pcap_http{Colors.RESET} [N]                      Extract HTTP requests")
@@ -1395,6 +1417,7 @@ def print_help():
     print(f"   {Colors.WHITE}ai_hunt_tls{Colors.RESET}                        AI TLS/SNI analysis")
     print(f"   {Colors.WHITE}ai_hunt_lateral{Colors.RESET}                    AI lateral movement detection")
     print(f"   {Colors.WHITE}ai_hunt_exfil{Colors.RESET}                      AI exfiltration analysis")
+    print(f"   {Colors.WHITE}ai_sync_pcap{Colors.RESET} [--detailed] [--limit] AI analysis of correlated timeline")
     
     print(f"\n{Colors.CYAN}🤖 Natural Language (AI-Powered):{Colors.RESET}")
     print(f"   {Colors.DIM}'Show me the top talkers from the web server logs'{Colors.RESET}")

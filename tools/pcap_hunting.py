@@ -260,7 +260,7 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
         return "\n".join(out)
 
     @mcp.tool()
-    def sync_pcap(detailed: bool = False) -> str:
+    def sync_pcap(detailed: bool = False, limit: int = 150) -> str:
         """
         Stage 2 & 3: PCAP Correlation Engine and Output Generation.
         Uses the globally loaded Markdown context to programmatically filter
@@ -341,8 +341,8 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
                         })
                         
                     # Hard limit to protect against console flooding on generic matches
-                    if len(matches) >= 150:
-                        matches.append({"limit_reached": True})
+                    if len(matches) >= limit:
+                        matches.append({"limit_reached": True, "limit_value": limit})
                         break
                         
         except Exception as e:
@@ -373,8 +373,8 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
             
         if detailed:
             for i, m in enumerate(matches, 1):
-                if "limit_reached" in m:
-                    out.append("\n---\n\n**⚠️ Warning:** Match limit reached (150 packets). Refine MD documentation for more specific IOCs.")
+                if m.get("limit_reached"):
+                    out.append(f"\n---\n\n**⚠️ Warning:** Match limit reached ({m['limit_value']} packets). Refine MD documentation or use `--limit` to increase.")
                     continue
                     
                 out.append("---")
@@ -387,7 +387,7 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
             grouped = defaultdict(list)
             limit_hit = False
             for m in matches:
-                if "limit_reached" in m:
+                if m.get("limit_reached"):
                     limit_hit = True
                     continue
                 grouped[m['reasons']].append(m)
@@ -404,7 +404,7 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
                 
             if limit_hit:
                 out.append("---")
-                out.append("\n**⚠️ Warning:** Match limit reached (150 packets). Refine MD documentation for more specific IOCs.")
+                out.append(f"\n**⚠️ Warning:** Match limit reached ({limit} packets). Refine MD documentation or use `--limit` to increase.")
             
         return "\n".join(out)
 
@@ -1355,4 +1355,23 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
         )
         return _ai_enhance(
             static, get_pcap_reporting_prompt, s.filename
+        )
+
+    @mcp.tool()
+    def ai_sync_pcap(detailed: bool = False, limit: int = 150) -> str:
+        """
+        AI-enhanced PCAP synchronization. Runs sync_pcap then
+        uses Gemini to analyze the correlated timeline, assess
+        the attack progression, and recommend next steps.
+        
+        Args:
+            detailed: Include packet-by-packet breakdown
+            limit: Match limit
+        """
+        s = get_pcap_session()
+        if not s or not getattr(s, 'file_path', None):
+            return "❌ No PCAP loaded. Use 'load_pcap' first."
+        static = sync_pcap(detailed=detailed, limit=limit)
+        return _ai_enhance(
+            static, get_pcap_threat_hunt_prompt, s.filename
         )
