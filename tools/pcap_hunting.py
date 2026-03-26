@@ -15,6 +15,7 @@ Tools:
 import logging
 import math
 import re
+import json
 from typing import Dict, List, Optional
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
@@ -156,13 +157,68 @@ def _extract_iocs_from_md(md_text: str) -> Dict[str, set]:
             
     return iocs
 
+def _extract_iocs_from_md_with_ai(md_text: str, gemini_client) -> Dict[str, set]:
+    """
+    Extracts IOCs from Markdown using Gemini for semantic understanding.
+    This allows it to ignore indicators in a negative context (e.g., "Not this IP").
+    """
+    if not gemini_client:
+        raise ValueError("Gemini client is not available for AI-based IOC extraction.")
+
+    # Strip headers to reduce token count and noise
+    md_text = re.sub(r'\n?={60}\n.*?\n={60}\n(?:\s*---.*?---\s*\n)?', '\n', md_text, flags=re.DOTALL)
+    md_text = re.sub(r'^\s*---.*?---\s*\n', '', md_text, flags=re.DOTALL)
+
+    prompt = f"""
+You are an expert security analyst parsing incident notes. Your task is to extract Indicators of Compromise (IOCs) from the following text.
+
+CRITICAL INSTRUCTIONS:
+1.  Only extract indicators that are presented as suspicious, malicious, or relevant to an investigation.
+2.  Explicitly IGNORE any indicators that are described as benign, safe, not dangerous, whitelisted, or part of a negative context (e.g., "Not this IP", "Ignore this domain").
+3.  Return the results as a valid JSON object. Do not include any other text, explanations, or markdown formatting.
+
+The JSON object must have these keys, with values as lists of strings:
+- "ips": A list of suspicious IPv4 or IPv6 addresses.
+- "domains": A list of suspicious domain names.
+- "macs": A list of suspicious MAC addresses.
+- "ports": A list of suspicious port numbers (as strings).
+- "timestamps": A list of suspicious timestamps in "YYYY-MM-DD HH:MM:SS" format.
+
+If no suspicious indicators are found for a category, return an empty list for that key.
+
+INCIDENT NOTES:
+---
+{md_text[:20000]}
+---
+
+JSON RESPONSE:
+"""
+    try:
+        response = gemini_client.models.generate_content(
+            model='gemini-3-flash-preview',
+            contents=prompt,
+        )
+        
+        response_text = response.text.strip()
+        if response_text.startswith("```"):
+            response_text = re.sub(r'^\s*```json\s*\n', '', response_text)
+            response_text = re.sub(r'\n\s*```\s*$', '', response_text)
+
+        data = json.loads(response_text)
+
+        iocs = {"ips": set(data.get("ips", [])), "macs": set(data.get("macs", [])), "domains": set(data.get("domains", [])), "ports": {int(p) for p in data.get("ports", []) if p.isdigit()}, "timestamps": [datetime.strptime(ts, '%Y-%m-%d %H:%M:%S') for ts in data.get("timestamps", [])]}
+        return iocs
+
+    except Exception as e:
+        logging.error(f"Error during AI IOC extraction: {e}")
+        return {"ips": set(), "macs": set(), "domains": set(), "ports": set(), "timestamps": []}
+
 # =========================================================================
 # MCP TOOL REGISTRATION
 # =========================================================================
 
 def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_func):
     """Register PCAP hunting tools with the MCP server."""
-
     _gemini_client = gemini_client
 
     @mcp.tool()
@@ -260,25 +316,32 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
         return "\n".join(out)
 
     @mcp.tool()
-    def sync_pcap(detailed: bool = False, limit: int = 150) -> str:
+    def sync_pcap(detailed: bool = False, limit: int = 150, iocs: Optional[Dict] = None) -> str:
         """
         Stage 2 & 3: PCAP Correlation Engine and Output Generation.
         Uses the globally loaded Markdown context to programmatically filter
         the loaded PCAP file and output synchronized events.
+
+        Args:
+            detailed: If True, show packet-by-packet details.
+            limit: The maximum number of packets to match.
+            iocs: (Internal) A pre-extracted dictionary of IOCs. If None, they will be extracted via Regex.
         """
         s = get_pcap_session()
         if not s or not getattr(s, 'file_path', None):
             return "❌ No PCAP loaded. Use 'load_pcap' first."
             
-        # Fetch the previously ingested OneNote Markdown context
-        from tools.threat_modeling import get_incident_context
-        incident_context = get_incident_context()
-        md_text = incident_context.get_combined_context()
-        if not md_text:
-            return "❌ No OneNote incident context loaded. Use 'load_md_onenote' first to provide investigation notes."
+        # If IOCs are not provided externally, extract them using the default Regex method.
+        if iocs is None:
+            from tools.threat_modeling import get_incident_context
+            incident_context = get_incident_context()
+            md_text = incident_context.get_combined_context()
+            if not md_text:
+                return "❌ No OneNote incident context loaded. Use 'load_md_onenote' first to provide investigation notes."
             
-        # Run Stage 1 Extraction
-        iocs = _extract_iocs_from_md(md_text)
+            # Run Stage 1 Extraction (Regex)
+            iocs = _extract_iocs_from_md(md_text)
+
         if not any(iocs.values()):
             return "⚠️ No recognizable IOCs (IPs, MACs, Domains, Ports, Timestamps) found in the loaded Markdown."
             
@@ -1364,9 +1427,9 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
     @mcp.tool()
     def ai_sync_pcap(detailed: bool = False, limit: int = 150, condition_orange: bool = False) -> str:
         """
-        AI-enhanced PCAP synchronization. Runs sync_pcap then
-        uses Gemini to analyze the correlated timeline, assess
-        the attack progression, and recommend next steps.
+        AI-enhanced PCAP synchronization. Uses Gemini to intelligently extract IOCs
+        from Markdown, runs sync_pcap, then uses Gemini again to analyze the
+        correlated timeline, assess the attack progression, and recommend next steps.
         
         Args:
             detailed: Include packet-by-packet breakdown
@@ -1376,7 +1439,21 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
         s = get_pcap_session()
         if not s or not getattr(s, 'file_path', None):
             return "❌ No PCAP loaded. Use 'load_pcap' first."
-        static = sync_pcap(detailed=detailed, limit=limit)
+
+        # Fetch the markdown context
+        from tools.threat_modeling import get_incident_context
+        incident_context = get_incident_context()
+        md_text = incident_context.get_combined_context()
+        if not md_text:
+            return "❌ No OneNote incident context loaded. Use 'load_md_onenote' first to provide investigation notes."
+
+        # Use AI to extract IOCs, respecting context like "Not Dangerous"
+        ai_iocs = _extract_iocs_from_md_with_ai(md_text, _gemini_client)
+
+        # Run the core sync logic with the AI-extracted IOCs
+        static = sync_pcap(detailed=detailed, limit=limit, iocs=ai_iocs)
+        
+        # Pass the correlated output to the AI for final analysis
         return _ai_enhance(
             static, get_pcap_threat_hunt_prompt, s.filename, condition_orange
         )
