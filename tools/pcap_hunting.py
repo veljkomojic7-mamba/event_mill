@@ -263,12 +263,12 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
         if not s or not getattr(s, 'file_path', None):
             return "❌ No PCAP loaded. Use 'load_pcap' first."
             
-        # Fetch the previously ingested Markdown context
-        from tools.threat_modeling import get_threat_intel_context
-        ti_context = get_threat_intel_context()
-        md_text = ti_context.get_combined_context()
+        # Fetch the previously ingested OneNote Markdown context
+        from tools.threat_modeling import get_incident_context
+        incident_context = get_incident_context()
+        md_text = incident_context.get_combined_context()
         if not md_text:
-            return "❌ No Markdown context loaded. Use 'load_md' first to provide investigation notes."
+            return "❌ No OneNote incident context loaded. Use 'load_md_onenote' first to provide investigation notes."
             
         # Run Stage 1 Extraction
         iocs = _extract_iocs_from_md(md_text)
@@ -348,20 +348,35 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
         out.append("=" * 60)
         out.append(f"Extracted from MD: {len(iocs['ips'])} IPs, {len(iocs['domains'])} Domains, {len(iocs['ports'])} Ports, {len(iocs['timestamps'])} Time Anchors")
         out.append(f"Target PCAP: {s.filename}\n")
+        out.append("# 🔄 Synchronized Incident Timeline")
+        out.append("")
+        out.append(f"- **Extracted from MD:** {len(iocs['ips'])} IPs, {len(iocs['domains'])} Domains, {len(iocs['ports'])} Ports, {len(iocs['timestamps'])} Time Anchors")
+        out.append(f"- **Target PCAP:** `{s.filename}`")
+        out.append("")
         
         if not matches:
             out.append("✅ No correlated network events found between the MD documentation and the PCAP file.")
+            out.append("---")
+            out.append("\n✅ No correlated network events found between the MD documentation and the PCAP file.")
             return "\n".join(out)
             
         for m in matches:
+        for i, m in enumerate(matches, 1):
             if "limit_reached" in m:
                 out.append("\n⚠️ Warning: Match limit reached (150 packets). Refine MD documentation.")
+                out.append("\n---\n\n**⚠️ Warning:** Match limit reached (150 packets). Refine MD documentation for more specific IOCs.")
                 continue
                 
             out.append(f"[{m['reasons']}] <---> [Packet #{m['packet_num']} / {m['timestamp']}]")
             out.append(f"Reasoning: Network event directly matches the documented context.")
             out.append(f"Summary: {m['summary'][:150]}")
             out.append("-" * 60)
+            out.append("---")
+            out.append(f"\n### Match #{i}: {m['reasons']}")
+            out.append(f"- **Packet:** `{m['packet_num']}`")
+            out.append(f"- **Timestamp:** `{m['timestamp']}`")
+            out.append(f"- **Summary:** `{m['summary'][:150]}`")
+            out.append("- **Reasoning:** Network event directly matches the documented context.")
             
         return "\n".join(out)
 

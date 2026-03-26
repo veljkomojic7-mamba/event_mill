@@ -334,6 +334,7 @@ COMMAND_COMPLETIONS: Dict[str, Dict] = {
     "threat_intel": {"__positional_1": ["list", "clear", "read"]},
     "load_pdf": {"--gcs": []},
     "load_md": {"--gcs": []},
+    "load_md_onenote": {"--gcs": []},
     "threat_model": {
         "--gcs": [],
         "--text": [],
@@ -912,6 +913,25 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
         })
         return True
 
+    elif cmd_name == "load_md_onenote":
+        # usage: load_md_onenote <file_path> [document_name] [--gcs]
+        if len(parts) < 2:
+            print("Usage: load_md_onenote <file_path> [document_name] [--gcs]")
+            print("  Load a OneNote Markdown (.md) file specifically for PCAP correlation")
+            print("  Examples:")
+            print("    load_md_onenote incident.md")
+            return True
+        file_path = parts[1]
+        from_gcs = "--gcs" in parts
+        remaining = [p for p in parts[2:] if p.lower() not in ("--gcs", "true", "false")]
+        doc_name = remaining[0] if remaining else ""
+        await call_soc_tool("load_md_onenote", {
+            "file_path": file_path,
+            "document_name": doc_name,
+            "from_gcs": from_gcs
+        })
+        return True
+
     elif cmd_name == "threat_model":
         # usage: threat_model <file_path> [source_type] [--gcs] OR threat_model --text "<content>"
         if len(parts) < 2:
@@ -1349,7 +1369,8 @@ def print_help():
     print(f"\n{Colors.RED}🔬 PCAP Threat Hunting:{Colors.RESET}")
     print(f"   {Colors.WHITE}load_pcap{Colors.RESET} <file> [--gcs]           Load PCAP for analysis (max 50 MB)")
     print(f"   {Colors.WHITE}pcap_summary{Colors.RESET}                       Show loaded PCAP stats")
-    print(f"   {Colors.WHITE}sync_pcap{Colors.RESET}                          Correlate loaded MD context with loaded PCAP")
+    print(f"   {Colors.WHITE}load_md_onenote{Colors.RESET} <path> [name] [--gcs] Load OneNote Markdown for PCAP correlation")
+    print(f"   {Colors.WHITE}sync_pcap{Colors.RESET}                          Correlate loaded OneNote MD with PCAP telemetry")
     print(f"   {Colors.WHITE}pcap_convos{Colors.RESET} [--by bytes|packets]   List network conversations")
     print(f"   {Colors.WHITE}pcap_dns{Colors.RESET} [N]                       Extract DNS activity")
     print(f"   {Colors.WHITE}pcap_http{Colors.RESET} [N]                      Extract HTTP requests")

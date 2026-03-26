@@ -135,10 +135,17 @@ class ThreatIntelContext:
 # Global threat intel context store
 _threat_intel_context = ThreatIntelContext()
 
+# Global incident context store (specifically for PCAP correlation)
+_incident_context = ThreatIntelContext()
+
 
 def get_threat_intel_context() -> ThreatIntelContext:
     """Get the global threat intel context store."""
     return _threat_intel_context
+
+def get_incident_context() -> ThreatIntelContext:
+    """Get the global incident notes context store."""
+    return _incident_context
 
 
 def extract_text_from_pdf(pdf_path: str) -> str:
@@ -198,6 +205,7 @@ def register_threat_modeling_tools(mcp, storage_client, gemini_client, get_bucke
     _get_bucket = get_bucket_func
     _tracker = get_threat_scenario_tracker()
     _threat_intel = get_threat_intel_context()
+    _incident_notes = get_incident_context()
 
     # =========================================================================
     # THREAT INTEL CONTEXT TOOLS
@@ -340,6 +348,58 @@ def register_threat_modeling_tools(mcp, storage_client, gemini_client, get_bucke
         except Exception as e:
             logging.error(f"Error loading MD file: {e}")
             return f"Error loading MD file: {str(e)}"
+
+    @mcp.tool()
+    def load_md_onenote(
+        file_path: str,
+        document_name: str = "",
+        from_gcs: bool = False,
+        bucket_name: str = ""
+    ) -> str:
+        """
+        Loads a OneNote Markdown (.md) file specifically as incident notes context 
+        for PCAP correlation (sync_pcap), keeping it separate from threat models.
+        """
+        try:
+            name = document_name or os.path.basename(file_path)
+            
+            if from_gcs:
+                target_bucket = _get_bucket(bucket_name)
+                if not target_bucket:
+                    return "Error: No bucket specified and GCS_LOG_BUCKET not set."
+                if not _storage_client:
+                    return "Error: GCS Client not initialized."
+                
+                bucket = _storage_client.bucket(target_bucket)
+                blob = bucket.blob(file_path)
+                content = blob.download_as_text()
+                source = f"gcs://{target_bucket}/{file_path}"
+            else:
+                if not os.path.exists(file_path):
+                    return f"Error: File not found: {file_path}"
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                source = f"file://{file_path}"
+            
+            if not content.strip():
+                return f"Error: No text content could be extracted from {file_path}"
+            
+            doc_id = _incident_notes.add_document(name, content, source)
+            
+            output = [
+                "✅ OneNote Incident Notes Loaded", "",
+                f"**Document ID:** `{doc_id}`",
+                f"**Name:** {name}",
+                f"**Source:** {source}",
+                f"**Characters:** {len(content):,}", "",
+                "This MD context is now available exclusively for PCAP correlation.", "",
+                _incident_notes.get_summary()
+            ]
+            return "\n".join(output)
+            
+        except Exception as e:
+            logging.error(f"Error loading OneNote MD file: {e}")
+            return f"Error loading OneNote MD file: {str(e)}"
 
     @mcp.tool()
     def load_threat_intel_text(
