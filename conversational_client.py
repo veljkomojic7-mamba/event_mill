@@ -374,7 +374,7 @@ COMMAND_COMPLETIONS: Dict[str, Dict] = {
     "viz_compact": {},
     "load_pcap": {"--gcs": []},
     "pcap_summary": {},
-    "sync_pcap": {},
+    "sync_pcap": {"--detailed": []},
     "pcap_convos": {
         "--by": ["bytes", "packets", "duration"],
         "--top": [],
@@ -1089,8 +1089,9 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
         return True
 
     elif cmd_name == "sync_pcap":
-        # usage: sync_pcap
-        await call_soc_tool("sync_pcap", {})
+        # usage: sync_pcap [--detailed]
+        detailed = "--detailed" in parts
+        await call_soc_tool("sync_pcap", {"detailed": detailed})
         return True
 
     elif cmd_name == "pcap_convos":
@@ -1370,7 +1371,7 @@ def print_help():
     print(f"   {Colors.WHITE}load_pcap{Colors.RESET} <file> [--gcs]           Load PCAP for analysis (max 50 MB)")
     print(f"   {Colors.WHITE}pcap_summary{Colors.RESET}                       Show loaded PCAP stats")
     print(f"   {Colors.WHITE}load_md_onenote{Colors.RESET} <path> [name] [--gcs] Load OneNote Markdown for PCAP correlation")
-    print(f"   {Colors.WHITE}sync_pcap{Colors.RESET}                          Correlate loaded OneNote MD with PCAP telemetry")
+    print(f"   {Colors.WHITE}sync_pcap{Colors.RESET} [--detailed]               Correlate loaded OneNote MD with PCAP telemetry")
     print(f"   {Colors.WHITE}pcap_convos{Colors.RESET} [--by bytes|packets]   List network conversations")
     print(f"   {Colors.WHITE}pcap_dns{Colors.RESET} [N]                       Extract DNS activity")
     print(f"   {Colors.WHITE}pcap_http{Colors.RESET} [N]                      Extract HTTP requests")

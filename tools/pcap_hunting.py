@@ -253,7 +253,7 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
         return "\n".join(out)
 
     @mcp.tool()
-    def sync_pcap() -> str:
+    def sync_pcap(detailed: bool = False) -> str:
         """
         Stage 2 & 3: PCAP Correlation Engine and Output Generation.
         Uses the globally loaded Markdown context to programmatically filter
@@ -354,17 +354,40 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
             out.append("\n✅ No correlated network events found between the MD documentation and the PCAP file.")
             return "\n".join(out)
             
-        for i, m in enumerate(matches, 1):
-            if "limit_reached" in m:
-                out.append("\n---\n\n**⚠️ Warning:** Match limit reached (150 packets). Refine MD documentation for more specific IOCs.")
-                continue
+        if detailed:
+            for i, m in enumerate(matches, 1):
+                if "limit_reached" in m:
+                    out.append("\n---\n\n**⚠️ Warning:** Match limit reached (150 packets). Refine MD documentation for more specific IOCs.")
+                    continue
+                    
+                out.append("---")
+                out.append(f"\n### Match #{i}: {m['reasons']}")
+                out.append(f"- **Packet:** `{m['packet_num']}`")
+                out.append(f"- **Timestamp:** `{m['timestamp']}`")
+                out.append(f"- **Summary:** `{m['summary'][:150]}`")
+                out.append("- **Reasoning:** Network event directly matches the documented context.")
+        else:
+            grouped = defaultdict(list)
+            limit_hit = False
+            for m in matches:
+                if "limit_reached" in m:
+                    limit_hit = True
+                    continue
+                grouped[m['reasons']].append(m)
                 
-            out.append("---")
-            out.append(f"\n### Match #{i}: {m['reasons']}")
-            out.append(f"- **Packet:** `{m['packet_num']}`")
-            out.append(f"- **Timestamp:** `{m['timestamp']}`")
-            out.append(f"- **Summary:** `{m['summary'][:150]}`")
-            out.append("- **Reasoning:** Network event directly matches the documented context.")
+            out.append("## 📊 Correlation Summary (Run with `--detailed` for packet-by-packet)")
+            out.append("")
+            for reason, pkts in grouped.items():
+                out.append(f"### 🎯 {reason}")
+                out.append(f"- **Matched Packets:** `{len(pkts)}`")
+                out.append(f"- **First Seen:** `{pkts[0]['timestamp']}` (Packet #{pkts[0]['packet_num']})")
+                out.append(f"- **Last Seen:** `{pkts[-1]['timestamp']}` (Packet #{pkts[-1]['packet_num']})")
+                out.append(f"- **Example Summary:** `{pkts[0]['summary'][:150]}`")
+                out.append("")
+                
+            if limit_hit:
+                out.append("---")
+                out.append("\n**⚠️ Warning:** Match limit reached (150 packets). Refine MD documentation for more specific IOCs.")
             
         return "\n".join(out)
 
