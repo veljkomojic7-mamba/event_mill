@@ -120,7 +120,11 @@ def _service_name(port: int) -> str:
 
 def _extract_iocs_from_md(md_text: str) -> Dict[str, set]:
     """Extracts behavioral and temporal IOCs from a Markdown string."""
-    # Strip YAML frontmatter (metadata between --- at the start of the file)
+    # Strip Event Mill context headers (which inject filenames as false-positive domains)
+    # and any YAML frontmatter (metadata between ---) immediately following them.
+    md_text = re.sub(r'\n?={60}\n.*?\n={60}\n(?:\s*---.*?---\s*\n)?', '\n', md_text, flags=re.DOTALL)
+    
+    # Also catch standalone YAML frontmatter at the very beginning of the string
     md_text = re.sub(r'^\s*---.*?---\s*\n', '', md_text, flags=re.DOTALL)
     
     iocs = {
