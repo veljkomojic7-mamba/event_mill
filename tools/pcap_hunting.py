@@ -120,6 +120,9 @@ def _service_name(port: int) -> str:
 
 def _extract_iocs_from_md(md_text: str) -> Dict[str, set]:
     """Extracts behavioral and temporal IOCs from a Markdown string."""
+    # Strip YAML frontmatter (metadata between --- at the start of the file)
+    md_text = re.sub(r'^\s*---.*?---\s*\n', '', md_text, flags=re.DOTALL)
+    
     iocs = {
         "ips": set(re.findall(r'\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b', md_text)),
         "macs": set(re.findall(r'\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b', md_text, re.IGNORECASE)),
