@@ -447,12 +447,114 @@ class EventMillCompleter:
     def __init__(self):
         self._matches: List[str] = []
 
+    async def _get_bucket_files(self, prefix: str = "") -> List[str]:
+        """Get list of files from bucket for autocomplete."""
+        try:
+            # This is called during tab completion, needs async context
+            # For now, return empty list - will be populated by sync version
+            return []
+        except Exception:
+            return []
+
+    def _get_bucket_files_sync(self, prefix: str = "") -> List[str]:
+        """Synchronously get bucket files (limited for tab completion)."""
+        try:
+            # Try to import in real-time
+            from google.cloud import storage
+            import os
+            
+            bucket_name = os.getenv("GCS_LOG_BUCKET", "")
+            if not bucket_name:
+                return []
+            
+            client = storage.Client()
+            bucket = client.bucket(bucket_name)
+            blobs = bucket.list_blobs(prefix=prefix)
+            
+            # Collect markdown files for loading
+            files = []
+            for blob in blobs:
+                if blob.name.endswith('.md'):
+                    files.append(blob.name)
+            return sorted(files)[:50]  # Limit to 50 for performance
+        except Exception:
+            return []
+
+    def _get_bucket_pcap_files(self, prefix: str = "") -> List[str]:
+        """Synchronously get PCAP files from bucket for tab completion."""
+        try:
+            from google.cloud import storage
+            import os
+            
+            bucket_name = os.getenv("GCS_LOG_BUCKET", "")
+            if not bucket_name:
+                return []
+            
+            client = storage.Client()
+            bucket = client.bucket(bucket_name)
+            blobs = bucket.list_blobs(prefix=prefix)
+            
+            # Collect PCAP files
+            files = []
+            for blob in blobs:
+                if blob.name.endswith(('.pcap', '.pcapng')):
+                    files.append(blob.name)
+            return sorted(files)[:50]  # Limit to 50 for performance
+        except Exception:
+            return []
+
+    def _get_loaded_pcap_file(self) -> List[str]:
+        """Get the currently loaded PCAP file for context."""
+        try:
+            from tools.pcap_parser import get_pcap_session
+            session = get_pcap_session()
+            if session and session.filename:
+                return [session.filename]
+        except Exception:
+            pass
+        return []
+
+    def _get_incident_files(self) -> List[str]:
+        """Get list of loaded incident context file names for autocomplete."""
+        try:
+            from tools.threat_modeling import get_incident_context
+            incident_context = get_incident_context()
+            docs = incident_context.get_all_documents()
+            
+            result = []
+            for doc_id, doc in docs.items():
+                # Return both name and ID for flexibility
+                result.append(doc["name"])
+                result.append(f"{doc_id}")
+            return result
+        except Exception:
+            return []
+
     def _get_flag_values(
         self, cmd: str, flag: str
     ) -> List[str]:
         """Get valid values for a flag of a command."""
         cmd_def = COMMAND_COMPLETIONS.get(cmd, {})
-        return cmd_def.get(flag, [])
+        values = cmd_def.get(flag, [])
+        
+        # Handle dynamic completions
+        if flag == "--files" or flag == "__positional_1":
+            if cmd in ("load_md_onenote", "load_md"):
+                # For load commands, suggest bucket files
+                prefix = ""
+                return self._get_bucket_files_sync(prefix)
+        
+        if flag == "--files" or flag == "--file-ids":
+            if cmd in ("sync_pcap", "ai_sync_pcap"):
+                # For sync commands, suggest loaded incident files
+                return self._get_incident_files()
+        
+        if flag == "--gcs" or flag == "__positional_1":
+            if cmd == "load_pcap":
+                # For load_pcap, suggest bucket PCAP files
+                return self._get_bucket_pcap_files()
+        
+        return values
 
     def _get_positional_values(
         self, cmd: str, pos_index: int
@@ -460,7 +562,18 @@ class EventMillCompleter:
         """Get valid values for positional arg N."""
         cmd_def = COMMAND_COMPLETIONS.get(cmd, {})
         key = f"__positional_{pos_index}"
-        return cmd_def.get(key, [])
+        values = cmd_def.get(key, [])
+        
+        # Handle dynamic positional args
+        if pos_index == 1 and cmd in ("load_md_onenote", "load_md"):
+            # First arg can be bucket files
+            return self._get_bucket_files_sync()
+        
+        if pos_index == 1 and cmd == "load_pcap":
+            # First arg can be bucket PCAP files
+            return self._get_bucket_pcap_files()
+        
+        return values
 
     def _get_flags_for_cmd(self, cmd: str) -> List[str]:
         """Get all flags (--xxx) for a command."""
