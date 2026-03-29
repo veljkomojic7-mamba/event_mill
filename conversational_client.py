@@ -332,6 +332,7 @@ COMMAND_COMPLETIONS: Dict[str, Dict] = {
     "patterns": {},
     "patterns_custom": {},
     "threat_intel": {"__positional_1": ["list", "clear", "read"]},
+    "incident": {"__positional_1": ["list"]},
     "load_pdf": {"--gcs": []},
     "load_md": {"--gcs": []},
     "load_md_onenote": {"--gcs": []},
@@ -374,7 +375,7 @@ COMMAND_COMPLETIONS: Dict[str, Dict] = {
     "viz_compact": {},
     "load_pcap": {"--gcs": []},
     "pcap_summary": {},
-    "sync_pcap": {"--detailed": [], "--limit": []},
+    "sync_pcap": {"--detailed": [], "--limit": [], "--files": [], "--file-ids": []},
     "pcap_convos": {
         "--by": ["bytes", "packets", "duration"],
         "--top": [],
@@ -430,7 +431,7 @@ COMMAND_COMPLETIONS: Dict[str, Dict] = {
         "--min-bytes": [],
         "--orange": [],
     },
-    "ai_sync_pcap": {"--detailed": [], "--limit": [], "--orange": []},
+    "ai_sync_pcap": {"--detailed": [], "--limit": [], "--orange": [], "--files": [], "--file-ids": []},
     "help": {},
     "exit": {},
     "quit": {},
@@ -879,6 +880,15 @@ async def handle_direct_command(session: ClientSession, user_input: str) -> bool
             await call_soc_tool("read_threat_intel_context", {"document_id": doc_id})
         else:
             print("Usage: threat_intel [list|clear <id>|read <id>]")
+        return True
+
+    elif cmd_name == "incident":
+        # usage: incident [list]
+        subcommand = parts[1] if len(parts) > 1 else "list"
+        if subcommand == "list":
+            await call_soc_tool("list_incident_context", {})
+        else:
+            print("Usage: incident [list]")
         return True
 
     elif cmd_name == "load_pdf":

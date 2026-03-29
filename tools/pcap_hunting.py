@@ -213,6 +213,68 @@ JSON RESPONSE:
         logging.error(f"Error during AI IOC extraction: {e}")
         return {"ips": set(), "macs": set(), "domains": set(), "ports": set(), "timestamps": []}
 
+
+def _build_md_context_from_files(incident_context, file_ids: Optional[str] = None, 
+                                  file_names: Optional[str] = None) -> str:
+    """
+    Build markdown context from selected files.
+    
+    Args:
+        incident_context: The threat intel context object containing loaded documents
+        file_ids: Comma-separated document IDs to use (e.g., "TI-0001,TI-0002")
+        file_names: Comma-separated file names to use (takes precedence over file_ids)
+    
+    Returns:
+        Combined markdown text from selected files, or all files if none specified
+    """
+    all_documents = incident_context.get_all_documents()
+    
+    if not all_documents:
+        return ""
+    
+    # If specific files are requested by name
+    if file_names:
+        selected_docs = {}
+        requested_names = [name.strip() for name in file_names.split(",")]
+        
+        for doc_id, doc in all_documents.items():
+            if doc["name"] in requested_names:
+                selected_docs[doc_id] = doc
+        
+        if selected_docs:
+            # Reconstruct combined context from selected documents
+            sections = []
+            for doc_id, doc in selected_docs.items():
+                header = f"\n{'='*60}\nCONTEXT: {doc['name']} ({doc_id})\nLoaded: {doc['loaded_at']}\n{'='*60}\n"
+                section = header + doc["content"]
+                sections.append(section)
+            return "\n".join(sections)
+        else:
+            return f"⚠️ No files found matching: {file_names}"
+    
+    # If specific files are requested by ID
+    if file_ids:
+        selected_docs = {}
+        requested_ids = [id.strip() for id in file_ids.split(",")]
+        
+        for doc_id in requested_ids:
+            if doc_id in all_documents:
+                selected_docs[doc_id] = all_documents[doc_id]
+        
+        if selected_docs:
+            # Reconstruct combined context from selected documents
+            sections = []
+            for doc_id, doc in selected_docs.items():
+                header = f"\n{'='*60}\nCONTEXT: {doc['name']} ({doc_id})\nLoaded: {doc['loaded_at']}\n{'='*60}\n"
+                section = header + doc["content"]
+                sections.append(section)
+            return "\n".join(sections)
+        else:
+            return f"⚠️ No files found matching: {file_ids}"
+    
+    # If no specific files requested, use all (default behavior)
+    return incident_context.get_combined_context()
+
 # =========================================================================
 # MCP TOOL REGISTRATION
 # =========================================================================
@@ -316,7 +378,8 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
         return "\n".join(out)
 
     @mcp.tool()
-    def sync_pcap(detailed: bool = False, limit: int = 150, iocs: Optional[Dict] = None) -> str:
+    def sync_pcap(detailed: bool = False, limit: int = 150, iocs: Optional[Dict] = None, 
+                  file_ids: Optional[str] = None, file_names: Optional[str] = None) -> str:
         """
         Stage 2 & 3: PCAP Correlation Engine and Output Generation.
         Uses the globally loaded Markdown context to programmatically filter
@@ -326,6 +389,8 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
             detailed: If True, show packet-by-packet details.
             limit: The maximum number of packets to match.
             iocs: (Internal) A pre-extracted dictionary of IOCs. If None, they will be extracted via Regex.
+            file_ids: Comma-separated document IDs to use (e.g., "TI-0001,TI-0002"). If None, uses all documents.
+            file_names: Comma-separated file names to use. If None, uses all documents. Takes precedence over file_ids.
         """
         s = get_pcap_session()
         if not s or not getattr(s, 'file_path', None):
@@ -335,9 +400,11 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
         if iocs is None:
             from tools.threat_modeling import get_incident_context
             incident_context = get_incident_context()
-            md_text = incident_context.get_combined_context()
+            
+            # Build MD text from selected files or all files
+            md_text = _build_md_context_from_files(incident_context, file_ids, file_names)
             if not md_text:
-                return "❌ No OneNote incident context loaded. Use 'load_md_onenote' first to provide investigation notes."
+                return "❌ No incident context found. Use 'load_md_onenote' or 'load_md' first to provide investigation notes."
             
             # Run Stage 1 Extraction (Regex)
             iocs = _extract_iocs_from_md(md_text)
@@ -1425,7 +1492,8 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
         )
 
     @mcp.tool()
-    def ai_sync_pcap(detailed: bool = False, limit: int = 150, condition_orange: bool = False) -> str:
+    def ai_sync_pcap(detailed: bool = False, limit: int = 150, condition_orange: bool = False,
+                     file_ids: Optional[str] = None, file_names: Optional[str] = None) -> str:
         """
         AI-enhanced PCAP synchronization. Uses Gemini to intelligently extract IOCs
         from Markdown, runs sync_pcap, then uses Gemini again to analyze the
@@ -1435,23 +1503,25 @@ def register_pcap_hunting_tools(mcp, storage_client, gemini_client, get_bucket_f
             detailed: Include packet-by-packet breakdown
             limit: Match limit
             condition_orange: Heightened state of alert
+            file_ids: Comma-separated document IDs to use (e.g., "TI-0001,TI-0002")
+            file_names: Comma-separated file names to use
         """
         s = get_pcap_session()
         if not s or not getattr(s, 'file_path', None):
             return "❌ No PCAP loaded. Use 'load_pcap' first."
 
-        # Fetch the markdown context
+        # Fetch the markdown context from selected files
         from tools.threat_modeling import get_incident_context
         incident_context = get_incident_context()
-        md_text = incident_context.get_combined_context()
-        if not md_text:
-            return "❌ No OneNote incident context loaded. Use 'load_md_onenote' first to provide investigation notes."
+        md_text = _build_md_context_from_files(incident_context, file_ids, file_names)
+        if not md_text or md_text.startswith("⚠️"):
+            return "❌ No incident context found. Use 'load_md_onenote' or 'load_md' first to provide investigation notes."
 
         # Use AI to extract IOCs, respecting context like "Not Dangerous"
         ai_iocs = _extract_iocs_from_md_with_ai(md_text, _gemini_client)
 
         # Run the core sync logic with the AI-extracted IOCs
-        static = sync_pcap(detailed=detailed, limit=limit, iocs=ai_iocs)
+        static = sync_pcap(detailed=detailed, limit=limit, iocs=ai_iocs, file_ids=file_ids, file_names=file_names)
         
         # Pass the correlated output to the AI for final analysis
         return _ai_enhance(

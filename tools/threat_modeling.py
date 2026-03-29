@@ -490,6 +490,42 @@ def register_threat_modeling_tools(mcp, storage_client, gemini_client, get_bucke
         return "\n".join(output)
 
     @mcp.tool()
+    def list_incident_context() -> str:
+        """
+        Lists all loaded incident context documents (markdown files used for PCAP sync).
+        Useful for determining which files to reference in sync_pcap with --files or --file-ids.
+        
+        Returns:
+            Summary of all loaded incident context documents
+        """
+        incident = get_incident_context()
+        docs = incident.get_all_documents()
+        
+        if not docs:
+            return "⚠️ No incident context loaded.\n\nUse 'load_md' or 'load_md_onenote' to add investigation notes."
+        
+        output = []
+        output.append("=" * 70)
+        output.append("📋 INCIDENT CONTEXT FILES")
+        output.append("=" * 70)
+        output.append("")
+        output.append(f"Total documents loaded: {len(docs)}")
+        output.append("")
+        
+        for doc_id, doc in docs.items():
+            output.append(f"  📄 [{doc_id}] {doc['name']}")
+            output.append(f"      Loaded: {doc['loaded_at']}")
+            output.append(f"      Size: {doc['char_count']} characters")
+            output.append("")
+        
+        output.append("USAGE EXAMPLES:")
+        output.append("  sync_pcap --files \"File1.md,File2.md\"")
+        output.append("  sync_pcap --file-ids \"TI-0001,TI-0003\"")
+        output.append("  ai_sync_pcap --files \"investigation.md\"")
+        
+        return "\n".join(output)
+
+    @mcp.tool()
     def clear_threat_intel_context(document_id: str = "") -> str:
         """
         Clears loaded threat intelligence context.
