@@ -522,12 +522,16 @@ class EventMillCompleter:
             docs = incident_context.get_all_documents()
             
             result = []
-            for doc_id, doc in docs.items():
-                # Return both name and ID for flexibility
-                result.append(doc["name"])
-                result.append(f"{doc_id}")
+            for doc_id, doc in sorted(docs.items()):
+                # Add both name and ID for flexibility in tab completion
+                name = doc.get("name", "")
+                if name:
+                    result.append(name)
+                if doc_id:
+                    result.append(doc_id)
             return result
-        except Exception:
+        except Exception as e:
+            # Silent fail - just return empty list
             return []
 
     def _get_flag_values(
@@ -537,22 +541,18 @@ class EventMillCompleter:
         cmd_def = COMMAND_COMPLETIONS.get(cmd, {})
         values = cmd_def.get(flag, [])
         
-        # Handle dynamic completions
-        if flag == "--files" or flag == "__positional_1":
-            if cmd in ("load_md_onenote", "load_md"):
-                # For load commands, suggest bucket files
-                prefix = ""
-                return self._get_bucket_files_sync(prefix)
+        # Handle dynamic completions for load commands (--files with bucket suggestions)
+        if cmd in ("load_md_onenote", "load_md") and flag == "--files":
+            return self._get_bucket_files_sync()
         
-        if flag == "--files" or flag == "--file-ids":
-            if cmd in ("sync_pcap", "ai_sync_pcap"):
-                # For sync commands, suggest loaded incident files
+        # Handle dynamic completions for load_pcap (--gcs with PCAP file suggestions)
+        if cmd == "load_pcap" and flag == "--gcs":
+            return self._get_bucket_pcap_files()
+        
+        # Handle dynamic completions for sync commands (--files or --file-ids with incident files)
+        if cmd in ("sync_pcap", "ai_sync_pcap"):
+            if flag == "--files" or flag == "--file-ids":
                 return self._get_incident_files()
-        
-        if flag == "--gcs" or flag == "__positional_1":
-            if cmd == "load_pcap":
-                # For load_pcap, suggest bucket PCAP files
-                return self._get_bucket_pcap_files()
         
         return values
 
